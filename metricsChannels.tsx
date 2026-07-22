@@ -190,11 +190,12 @@ function DonutChart({ data, colors }) {
         </div>
       )}
 
-      <div className="flex flex-wrap justify-center gap-3 mt-4 w-full">
+      {/* Stacked Vertical Legend */}
+      <div className="flex flex-col gap-2 mt-4 w-full max-w-[220px]">
         {data.slice(0, 6).map((d, i) => (
-          <div key={i} className="flex items-center gap-1.5 text-xs font-roboto font-medium text-slate-600">
-            <div className="w-3 h-3 rounded-none" style={{ backgroundColor: colors[i % colors.length] }}></div>
-            <span className="uppercase text-[11px] font-bold font-khand pt-[2px]">{d.name}</span>
+          <div key={i} className="flex items-center gap-2 text-xs font-roboto font-medium text-slate-600">
+            <div className="w-3.5 h-3.5 rounded-none shrink-0" style={{ backgroundColor: colors[i % colors.length] }}></div>
+            <span className="uppercase text-xs font-bold font-khand pt-[2px] truncate" style={{ color: BRAND_COLORS.primary }}>{d.name}</span>
           </div>
         ))}
       </div>
@@ -363,8 +364,8 @@ export default function App({ data = [] }) {
 
     if (!data || !data.length) return result;
 
-    // Row 1 (idx 0): Clean converted unique identifier headers
-    // Row 2 (idx 1): Original raw BigQuery header row (EXPLICITLY BYPASSED)
+    // Row 1 (idx 0): Clean converted unique identifier headers from row 2 BigQuery export
+    // Row 2 (idx 1): Original raw BigQuery header row (EXPLICITLY BYPASSED to prevent header duplication)
     // Row 3+ (idx >= 2): Primary data payload rows
     const headers = data[0]?.row || [];
     const findCol = (str) => headers.findIndex(h => safeString(h).toLowerCase() === str.toLowerCase());
@@ -891,8 +892,8 @@ export default function App({ data = [] }) {
                 diff={formatNumber(Math.abs(kpiStats.totalNights - kpiStats.stlyNights))}
                 isNeg={kpiStats.totalNights - kpiStats.stlyNights < 0}
                 bgColor={BRAND_COLORS.teal} 
-                textColor="#FFFFFF"
-                labelColor="#FFFFFFB3"
+                textColor={BRAND_COLORS.frost}
+                labelColor={`${BRAND_COLORS.frost}B3`}
               />
 
               <KPICard 
@@ -919,7 +920,7 @@ export default function App({ data = [] }) {
                 className="p-5 flex flex-col justify-center items-center text-center h-44 shadow-md transition-transform hover:scale-[1.02] rounded-none border border-black/5"
                 style={{ backgroundColor: BRAND_COLORS.powder }}
               >
-                <h3 className="text-6xl font-khand font-bold tracking-tight leading-none pt-[2px]" style={{ color: BRAND_COLORS.primary }}>
+                <h3 className="text-8xl font-khand font-bold tracking-tight leading-none pt-[2px]" style={{ color: BRAND_COLORS.primary }}>
                   {Math.round(kpiStats.avgLead)}
                 </h3>
                 <p className="text-sm font-khand font-bold uppercase tracking-wider mt-1 pt-[2px]" style={{ color: BRAND_COLORS.primary }}>
@@ -1040,16 +1041,16 @@ export default function App({ data = [] }) {
               </div>
 
               <div className="p-5 flex flex-col justify-between h-44 rounded-none shadow-md" style={{ backgroundColor: BRAND_COLORS.teal }}>
-                <span className="text-lg font-khand font-bold uppercase tracking-wider text-white/70 pt-[2px]">
+                <span className="text-lg font-khand font-bold uppercase tracking-wider pt-[2px]" style={{ color: `${BRAND_COLORS.frost}B3` }}>
                   ADR CHG
                 </span>
                 <div className="flex flex-col gap-0.5 -mt-6">
-                  <span className="text-4xl md:text-5xl font-khand font-bold uppercase tracking-normal leading-none text-white pt-[2px]">
+                  <span className="text-4xl md:text-5xl font-khand font-bold uppercase tracking-normal leading-none pt-[2px]" style={{ color: BRAND_COLORS.frost }}>
                     {kpiStats.avgADR - kpiStats.stlyADR >= 0 ? `+$${(kpiStats.avgADR - kpiStats.stlyADR).toFixed(2)}` : `-$${Math.abs(kpiStats.avgADR - kpiStats.stlyADR).toFixed(2)}`}
                   </span>
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    <ChangeIndicator isNeg={kpiStats.avgADR - kpiStats.stlyADR < 0} textColor="#FFFFFF" bgColor={BRAND_COLORS.teal} />
-                    <span className="text-sm font-roboto font-medium tracking-normal text-white">
+                    <ChangeIndicator isNeg={kpiStats.avgADR - kpiStats.stlyADR < 0} textColor={BRAND_COLORS.frost} bgColor={BRAND_COLORS.cyan} />
+                    <span className="text-sm font-roboto font-medium tracking-normal text-white" style={{ color: `${BRAND_COLORS.frost}B3` }}>
                       {kpiStats.stlyADR > 0 ? `${(((kpiStats.avgADR - kpiStats.stlyADR) / kpiStats.stlyADR) * 100).toFixed(1)}%` : '0.0%'}
                     </span>
                   </div>
@@ -1091,7 +1092,7 @@ export default function App({ data = [] }) {
               </div>
 
               <div className="p-5 flex flex-col justify-center items-center text-center h-44 rounded-none shadow-md" style={{ backgroundColor: BRAND_COLORS.powder }}>
-                <h3 className="text-6xl font-khand font-bold tracking-tight leading-none pt-[2px]" style={{ color: BRAND_COLORS.primary }}>
+                <h3 className="text-8xl font-khand font-bold tracking-tight leading-none pt-[2px]" style={{ color: BRAND_COLORS.primary }}>
                   {Math.round(kpiStats.avgLead || 0)}
                 </h3>
                 <p className="text-sm font-khand font-bold uppercase tracking-wider mt-1 pt-[2px]" style={{ color: BRAND_COLORS.primary }}>
@@ -1260,8 +1261,8 @@ export default function App({ data = [] }) {
               )}
 
               {/* SECTION 1: STAY DURATION */}
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 border-b border-slate-100 pb-10">
-                <div className="lg:max-w-xs w-full shrink-0">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8 border-b border-slate-100 pb-10">
+                <div className="lg:w-52 shrink-0">
                   <h4 className="font-khand uppercase font-bold text-xl tracking-wider leading-none pt-[2px]" style={{ color: BRAND_COLORS.primary }}>
                     LENGTH OF STAY
                   </h4>
@@ -1277,7 +1278,7 @@ export default function App({ data = [] }) {
                     { label: "6 NIGHTS", style:  { backgroundColor: BRAND_COLORS.frost, border: `2px solid ${BRAND_COLORS.cyan }`, color: BRAND_COLORS.cyan } },
                     { label: "7+ NIGHTS", style: { backgroundColor: BRAND_COLORS.white, border: `2px solid ${BRAND_COLORS.aqua }`, color: BRAND_COLORS.aqua } }
                   ].map((block, idx) => (
-                    <div key={idx} className="flex flex-col items-center">
+                    <div key={idx} className="flex flex-col items-center w-full">
                       <span className="text-xs sm:text-sm font-bold font-khand uppercase mb-1 whitespace-nowrap pt-[2px]" style={{ color: BRAND_COLORS.primary }}>
                         {block.label}
                       </span>
@@ -1286,7 +1287,7 @@ export default function App({ data = [] }) {
                         style={block.style}
                       >
                         <span
-                          className="text-2xl md:text-3xl font-khand font-bold tracking-normal leading-none pt-[2px]"
+                          className="text-2xl md:text-3xl lg:text-4xl font-khand font-bold tracking-normal leading-none pt-[2px]"
                           style={{ color: block.style.color }}
                         >
                           {String(stayProfilesMetrics.stayNights[idx] || 0).padStart(2, '0')}%
@@ -1298,8 +1299,8 @@ export default function App({ data = [] }) {
               </div>
 
               {/* SECTION 2: BOOKING LEAD TIME */}
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6">
-                <div className="lg:max-w-xs w-full shrink-0">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8 pb-6">
+                <div className="lg:w-52 shrink-0">
                   <h4 className="font-khand uppercase font-bold text-xl tracking-wider leading-none pt-[2px]" style={{ color: BRAND_COLORS.primary }}>
                     LEAD DAYS
                   </h4>
@@ -1315,7 +1316,7 @@ export default function App({ data = [] }) {
                     { label: "61-90 DAYS", style: { backgroundColor: '#b4126d', color: BRAND_COLORS.orange } },
                     { label: "91+ DAYS",   style: { backgroundColor: BRAND_COLORS.purple, color: BRAND_COLORS.red } }
                   ].map((block, idx) => (
-                    <div key={idx} className="flex flex-col items-center">
+                    <div key={idx} className="flex flex-col items-center w-full">
                       <span className="text-xs sm:text-sm font-bold font-khand uppercase mb-1 whitespace-nowrap pt-[2px]" style={{ color: BRAND_COLORS.primary }}>
                         {block.label}
                       </span>
@@ -1324,7 +1325,7 @@ export default function App({ data = [] }) {
                         style={block.style}
                       >
                         <span 
-                          className="text-2xl md:text-3xl font-khand font-bold tracking-normal leading-none pt-[2px]"
+                          className="text-2xl md:text-3xl lg:text-4xl font-khand font-bold tracking-normal leading-none pt-[2px]"
                           style={{ color: block.style.color }}
                         >
                           {String(stayProfilesMetrics.leadTimes[idx] || 0).padStart(2, '0')}%
