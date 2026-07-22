@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 
 const BRAND_COLORS = {
   primary: "#163666",
@@ -381,7 +381,8 @@ export default function App({ data = [] }) {
       // Channel columns
       channelYear: findCol("channel_year"),
       channelMonth: findCol("channel_stay_month"),
-      channelMetric: findColMulti(["channel_metric_code", "channel_metric"]),
+      channelMetric: findCol("channel_metric"),
+      channelMetricCode: findCol("channel_metric_code"),
       channelResn: findCol("channel_no_resn"),
       channelNights: findCol("channel_nights"),
       channelRev: findCol("channel_revenue"),
@@ -390,8 +391,8 @@ export default function App({ data = [] }) {
       channelLead: findCol("channel_lead_days"),
 
       // Source columns
-      sourceYear: findColMulti(["source_year", "channel_year"]),
-      sourceMonth: findColMulti(["source_stay_month", "channel_stay_month"]),
+      sourceYear: findColMulti(["source_year"]),
+      sourceMonth: findColMulti(["source_stay_month"]),
       sourceMetric: findCol("source_metric"),
       sourceResn: findCol("source_no_resn"),
       sourceNights: findCol("source_nights"),
@@ -401,15 +402,15 @@ export default function App({ data = [] }) {
       sourceLead: findCol("source_lead_days"),
 
       // Sub Source columns
-      subsourceYear: findColMulti(["source_subsource_year", "subsource_year", "source_year", "channel_year"]),
-      subsourceMonth: findColMulti(["source_subsource_stay_month", "subsource_stay_month", "source_stay_month", "channel_stay_month"]),
-      subsourceMetric: findColMulti(["source_subsource_metric", "source_subsource _metric", "subsource_metric"]),
-      subsourceResn: findColMulti(["source_subsource_no_resn", "subsource_no_resn"]),
-      subsourceNights: findColMulti(["source_subsource_nights", "subsource_nights"]),
-      subsourceRev: findColMulti(["source_subsource_revenue", "subsource_revenue"]),
-      subsourceADR: findColMulti(["source_subsource_adr", "subsource_adr"]),
-      subsourceALOS: findColMulti(["source_subsource_alos", "subsource_alos"]),
-      subsourceLead: findColMulti(["source_subsource_lead_days", "subsource_lead_days"]),
+      subsourceYear: findColMulti(["subsource_year"]),
+      subsourceMonth: findColMulti(["subsource_stay_month"]),
+      subsourceMetric: findColMulti(["subsource_metric"]),
+      subsourceResn: findColMulti(["subsource_no_resn"]),
+      subsourceNights: findColMulti(["subsource_nights"]),
+      subsourceRev: findColMulti(["subsource_revenue"]),
+      subsourceADR: findColMulti(["subsource_adr"]),
+      subsourceALOS: findColMulti(["subsource_alos"]),
+      subsourceLead: findColMulti(["subsource_lead_days"]),
 
       // Pace columns
       paceYear: findCol("pace_year"),
@@ -433,68 +434,82 @@ export default function App({ data = [] }) {
       const r = item.row;
       if (!r) return;
 
-      // Channel Rows
+      // Channel Rows Parsing with Type Casting
       if (map.channelYear !== -1 && r[map.channelYear]) {
         const yr = Number(r[map.channelYear]);
         if (!isNaN(yr)) {
+          const metricVal = safeString(r[map.channelMetric] !== undefined ? r[map.channelMetric] : r[map.channelMetricCode]);
+          const metricCodeVal = map.channelMetricCode !== -1 ? safeString(r[map.channelMetricCode]) : metricVal;
+
           result.channelRows.push({
             index_: item.index_,
             year: yr,
+            stayMonth: safeString(r[map.channelMonth]).toUpperCase(),
             month: safeString(r[map.channelMonth]).toUpperCase(),
-            channel: safeString(r[map.channelMetric]),
-            metric: safeString(r[map.channelMetric]),
+            metric: metricVal,
+            channel: metricVal,
+            metricCode: metricCodeVal,
+            noResn: Number(r[map.channelResn]) || 0,
             resn: Number(r[map.channelResn]) || 0,
             nights: Number(r[map.channelNights]) || 0,
             revenue: Number(r[map.channelRev]) || 0,
             adr: Number(r[map.channelADR]) || 0,
             alos: Number(r[map.channelALOS]) || 0,
-            lead: Number(r[map.channelLead]) || 0
+            lead: Number(r[map.channelLead]) || 0,
+            leadDays: Number(r[map.channelLead]) || 0
           });
         }
       }
 
-      // Source Rows
+      // Source Rows Parsing with Type Casting
       if (map.sourceMetric !== -1 && r[map.sourceMetric]) {
         const yr = map.sourceYear !== -1 && r[map.sourceYear] ? Number(r[map.sourceYear]) : (result.channelRows[result.channelRows.length - 1]?.year || 2026);
         result.sourceRows.push({
           index_: item.index_,
           year: isNaN(yr) ? 2026 : yr,
+          stayMonth: map.sourceMonth !== -1 && r[map.sourceMonth] ? safeString(r[map.sourceMonth]).toUpperCase() : 'JAN',
           month: map.sourceMonth !== -1 && r[map.sourceMonth] ? safeString(r[map.sourceMonth]).toUpperCase() : 'JAN',
           metric: safeString(r[map.sourceMetric]),
           channel: safeString(r[map.sourceMetric]),
+          noResn: Number(r[map.sourceResn]) || 0,
           resn: Number(r[map.sourceResn]) || 0,
           nights: Number(r[map.sourceNights]) || 0,
           revenue: Number(r[map.sourceRev]) || 0,
           adr: Number(r[map.sourceADR]) || 0,
           alos: Number(r[map.sourceALOS]) || 0,
-          lead: Number(r[map.sourceLead]) || 0
+          lead: Number(r[map.sourceLead]) || 0,
+          leadDays: Number(r[map.sourceLead]) || 0
         });
       }
 
-      // Sub Source Rows
+      // Sub Source Rows Parsing with Type Casting
       if (map.subsourceMetric !== -1 && r[map.subsourceMetric]) {
         const yr = map.subsourceYear !== -1 && r[map.subsourceYear] ? Number(r[map.subsourceYear]) : 2026;
         result.subsourceRows.push({
           index_: item.index_,
           year: isNaN(yr) ? 2026 : yr,
+          stayMonth: map.subsourceMonth !== -1 && r[map.subsourceMonth] ? safeString(r[map.subsourceMonth]).toUpperCase() : 'JAN',
           month: map.subsourceMonth !== -1 && r[map.subsourceMonth] ? safeString(r[map.subsourceMonth]).toUpperCase() : 'JAN',
           metric: safeString(r[map.subsourceMetric]),
           channel: safeString(r[map.subsourceMetric]),
+          noResn: Number(r[map.subsourceResn]) || 0,
           resn: Number(r[map.subsourceResn]) || 0,
           nights: Number(r[map.subsourceNights]) || 0,
           revenue: Number(r[map.subsourceRev]) || 0,
           adr: Number(r[map.subsourceADR]) || 0,
           alos: Number(r[map.subsourceALOS]) || 0,
-          lead: Number(r[map.subsourceLead]) || 0
+          lead: Number(r[map.subsourceLead]) || 0,
+          leadDays: Number(r[map.subsourceLead]) || 0
         });
       }
 
-      // Pace Rows
+      // Pace Rows Parsing with Type Casting
       if (map.paceYear !== -1 && r[map.paceYear]) {
         const yr = Number(r[map.paceYear]);
         if (!isNaN(yr)) {
           result.paceRows.push({
             year: yr,
+            stayMonth: safeString(r[map.paceMonth]).toUpperCase(),
             month: safeString(r[map.paceMonth]).toUpperCase(),
             metricType: map.paceMetricType !== -1 ? safeString(r[map.paceMetricType]).toUpperCase() : '',
             metric: map.paceMetric !== -1 ? safeString(r[map.paceMetric]) : '',
@@ -996,6 +1011,7 @@ export default function App({ data = [] }) {
           </div>
         )}
 
+        {/* WORKSPACE TAB: PICKUP & PACE */}
         {(activeTab === 'pickup & pace' || activeTab === 'pace_pickup') && (
           <div className="space-y-8 animate-in">
             
@@ -1153,6 +1169,7 @@ export default function App({ data = [] }) {
           </div>
         )}
 
+        {/* WORKSPACE TAB: STAY PROFILES */}
         {activeTab === 'stay_profiles' && (
           <div className="space-y-8 animate-in">
             
@@ -1190,7 +1207,7 @@ export default function App({ data = [] }) {
                   ))}
                 </div>
 
-                {/* Metric Selector Dropdown */}
+                {/* Metric Selector Dropdown with Fixed Width */}
                 <div className="relative">
                   <button 
                     onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
@@ -1325,6 +1342,7 @@ export default function App({ data = [] }) {
         )}
 
       </div>
+
       {/* Footer */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8 flex justify-between items-center text-[9px] font-khand font-bold uppercase tracking-widest" style={{ color: `${BRAND_COLORS.primary}80` }}>
         <span className="pt-[2px]">METRICS BY REVREBEL</span>

@@ -58,13 +58,19 @@ const formatCompactUSD = (val) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 0 }).format(val || 0);
 
 export default function App({ data = [] }) {
+  // Navigation & Filter States
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedYear, setSelectedYear] = useState('2026');
   const [selectedMonth, setSelectedMonth] = useState('YEAR');
   const [selectedSegment, setSelectedSegment] = useState('ALL');
 
+  // Day of Week Filter & Interaction States
   const [dowSegmentFilter, setDowSegmentFilter] = useState('TOTAL');
   const [dowMonthFilter, setDowMonthFilter] = useState('YEAR');
+  const [hoveredDay, setHoveredDay] = useState(null);
+
+  // Behavior Profile Filter State
+  const [selectedBehaviorSegment, setSelectedBehaviorSegment] = useState('ALL');
 
   const parsedData = useMemo(() => {
     const result = {
@@ -84,53 +90,41 @@ export default function App({ data = [] }) {
       return result;
     }
 
-    let headerRowIdx = 0;
-    for (let i = 0; i < Math.min(5, data.length); i++) {
-      const rowArr = data[i]?.row || [];
-      const lowerArr = rowArr.map(c => safeString(c).toLowerCase());
-      if (lowerArr.includes('property') || lowerArr.includes('segment_year') || lowerArr.includes('pace_year') || lowerArr.includes('dow_year')) {
-        headerRowIdx = i;
-        break;
-      }
-    }
-
-    const headers = data[headerRowIdx]?.row || [];
+    const headers = data[0]?.row || [];
     const findCol = (str) => headers.findIndex(h => safeString(h).toLowerCase() === str.toLowerCase());
 
     const map = {
       property: findCol("PROPERTY"),
       rooms: findCol("ROOMS"),
-      segmentYear: findCol("segment_year"),
-      segmentMonth: findCol("segment_stay_month"),
-      segmentMetric: findCol("segment_metric"),
-      segmentResn: findCol("segment_no_resn"),
-      segmentNights: findCol("segment_nights"),
-      segmentRev: findCol("segment_revenue"),
-      segmentADR: findCol("segment_adr"),
-      segmentALOS: findCol("segment_alos"),
-      segmentLead: findCol("segment_lead_days"),
-      paceYear: findCol("pace_year"),
-      paceMonth: findCol("pace_stay_month"),
-      paceMetricType: findCol("pace_metric_type"),
-      paceMetric: findCol("pace_metric"),
-      paceTYBook: findCol("pace_ty_bookings"),
-      paceTYNights: findCol("pace_ty_room_nights"),
-      paceTYRev: findCol("pace_ty_revenue"),
-      paceSTLYBook: findCol("pace_stly_bookings"),
-      paceSTLYNights: findCol("pace_stly_room_nights"),
-      paceSTLYRev: findCol("pace_stly_revenue"),
-      budgetYear: findCol("budget_year"),
-      budgetMonth: findCol("budget_stay_month"),
+      segmentYear: findCol("segment_year") !== -1 ? findCol("segment_year") : findCol("source_year"),
+      segmentMonth: findCol("segment_stay_month") !== -1 ? findCol("segment_stay_month") : findCol("source_stay_month"),
+      segmentMetric: findCol("segment_metric") !== -1 ? findCol("segment_metric") : findCol("source_metric"),
+      segmentResn: findCol("segment_no_resn") !== -1 ? findCol("segment_no_resn") : findCol("source_no_resn"),
+      segmentNights: findCol("segment_nights") !== -1 ? findCol("segment_nights") : findCol("source_nights"),
+      segmentRev: findCol("segment_revenue") !== -1 ? findCol("segment_revenue") : findCol("source_revenue"),
+      segmentADR: findCol("segment_adr") !== -1 ? findCol("segment_adr") : findCol("source_adr"),
+      segmentALOS: findCol("segment_alos") !== -1 ? findCol("segment_alos") : findCol("source_alos"),
+      segmentLead: findCol("segment_lead_days") !== -1 ? findCol("segment_lead_days") : findCol("source_lead_days"),
+      paceYear: findCol("pace_year") !== -1 ? findCol("pace_year") : findCol("pickup_year"),
+      paceMonth: findCol("pace_stay_month") !== -1 ? findCol("pace_stay_month") : findCol("pickup_stay_month"),
+      paceMetricType: findCol("pace_metric_type") !== -1 ? findCol("pace_metric_type") : findCol("pickup_metric_type"),
+      paceMetric: findCol("pace_metric") !== -1 ? findCol("pace_metric") : findCol("pickup_metric"),
+      paceTYRev: findCol("pace_ty_revenue") !== -1 ? findCol("pace_ty_revenue") : findCol("pickup_ty_revenue"),
+      paceSTLYRev: findCol("pace_stly_revenue") !== -1 ? findCol("pace_stly_revenue") : findCol("pickup_stly_revenue"),
+      paceTYNights: findCol("pace_ty_room_nights") !== -1 ? findCol("pace_ty_room_nights") : findCol("pickup_ty_room_nights"),
+      paceSTLYNights: findCol("pace_stly_room_nights") !== -1 ? findCol("pace_stly_room_nights") : findCol("pickup_stly_room_nights"),
+      budgetYear: findCol("budget_year") !== -1 ? findCol("budget_year") : findCol("segment_year"),
+      budgetMonth: findCol("budget_stay_month") !== -1 ? findCol("budget_stay_month") : findCol("segment_stay_month"),
       budgetMetric: findCol("budget_metric"),
       budgetRooms: findCol("budget_rooms"),
       budgetRev: findCol("budget_revenue"),
-      forecastYear: findCol("forecast_year"),
-      forecastMonth: findCol("forecast_stay_month"),
+      forecastYear: findCol("forecast_year") !== -1 ? findCol("forecast_year") : findCol("segment_year"),
+      forecastMonth: findCol("forecast_stay_month") !== -1 ? findCol("forecast_stay_month") : findCol("segment_stay_month"),
       forecastMetric: findCol("forecast_metric"),
       forecastRooms: findCol("forecast_rooms"),
       forecastRev: findCol("forecast_revenue"),
       dowYear: findCol("dow_year"),
-      dowMonth: findCol("dow_stay_month"),
+      dowMonth: findCol("dow_month") !== -1 ? findCol("dow_month") : findCol("dow_stay_month"),
       dowMetric: findCol("dow_metric"),
       dowSun: findCol("dow_sun"),
       dowMon: findCol("dow_mon"),
@@ -142,19 +136,21 @@ export default function App({ data = [] }) {
     };
     result.headerMap = map;
 
-    if (data[headerRowIdx + 1]?.row) {
-      const nextRow = data[headerRowIdx + 1].row;
-      if (map.property !== -1 && nextRow[map.property]) {
-        result.propertyName = safeString(nextRow[map.property]) || result.propertyName;
+    // Discover Property & Rooms metadata from row 1 or row 2
+    for (let idx = 1; idx < Math.min(5, data.length); idx++) {
+      const row = data[idx]?.row;
+      if (!row) continue;
+      if (map.property !== -1 && row[map.property]) {
+        result.propertyName = safeString(row[map.property]).toUpperCase() || result.propertyName;
       }
-      if (map.rooms !== -1 && !isNaN(Number(nextRow[map.rooms]))) {
-        const rVal = Number(nextRow[map.rooms]);
+      if (map.rooms !== -1 && !isNaN(Number(row[map.rooms]))) {
+        const rVal = Number(row[map.rooms]);
         if (rVal > 0) result.roomsConfig = rVal;
       }
     }
 
     data.forEach((item, idx) => {
-      if (idx <= headerRowIdx) return;
+      if (idx <= 1) return;
       const r = item.row;
       if (!r) return;
 
@@ -164,23 +160,18 @@ export default function App({ data = [] }) {
           const entry = {
             index_: item.index_ ?? idx,
             year: yr,
-            YEAR: yr,
             month: safeString(r[map.segmentMonth]).toUpperCase(),
-            STAY_MONTH: safeString(r[map.segmentMonth]).toUpperCase(),
-            segment: safeString(r[map.segmentMetric]).toUpperCase(),
-            METRIC: safeString(r[map.segmentMetric]).toUpperCase() || 'TOTAL',
+            stayMonth: safeString(r[map.segmentMonth]).toUpperCase(),
+            metric: safeString(r[map.segmentMetric]).toUpperCase() || 'TOTAL',
+            segment: safeString(r[map.segmentMetric]).toUpperCase() || 'TOTAL',
+            noResn: Number(r[map.segmentResn]) || 0,
             resn: Number(r[map.segmentResn]) || 0,
-            NO_RESN: Number(r[map.segmentResn]) || 0,
             nights: Number(r[map.segmentNights]) || 0,
-            NIGHTS: Number(r[map.segmentNights]) || 0,
             revenue: Number(r[map.segmentRev]) || 0,
-            REVENUE: Number(r[map.segmentRev]) || 0,
             adr: Number(r[map.segmentADR]) || 0,
-            ADR: Number(r[map.segmentADR]) || 0,
             alos: Number(r[map.segmentALOS]) || 0,
-            ALOS: Number(r[map.segmentALOS]) || 0,
             lead: Number(r[map.segmentLead]) || 0,
-            LEAD_DAYS: Number(r[map.segmentLead]) || 0
+            leadDays: Number(r[map.segmentLead]) || 0
           };
           result.rows.push(entry);
           result.segmentRows.push(entry);
@@ -193,6 +184,7 @@ export default function App({ data = [] }) {
           result.paceRows.push({
             year: yr,
             month: safeString(r[map.paceMonth]).toUpperCase(),
+            stayMonth: safeString(r[map.paceMonth]).toUpperCase(),
             metricType: safeString(r[map.paceMetricType]).toUpperCase(),
             metric: safeString(r[map.paceMetric]).toUpperCase(),
             ty: Number(r[map.paceTYRev]) || 0,
@@ -204,9 +196,9 @@ export default function App({ data = [] }) {
       }
 
       if (map.budgetRev !== -1 && r[map.budgetRev]) {
-        const yrVal = r[map.budgetYear] || r[map.segmentYear];
+        const yrVal = r[map.budgetYear];
         const yr = yrVal ? safeString(yrVal) : '2026';
-        const m3 = safeString(r[map.budgetMonth] || r[map.segmentMonth]).toUpperCase();
+        const m3 = safeString(r[map.budgetMonth]).toUpperCase();
         if (MONTH_ORDER.includes(m3)) {
           if (!result.budgetEntries[yr]) result.budgetEntries[yr] = {};
           if (!result.budgetEntries[yr][m3]) result.budgetEntries[yr][m3] = { rooms: 0, revenue: 0 };
@@ -216,9 +208,9 @@ export default function App({ data = [] }) {
       }
 
       if (map.forecastRev !== -1 && r[map.forecastRev]) {
-        const yrVal = r[map.forecastYear] || r[map.segmentYear];
+        const yrVal = r[map.forecastYear];
         const yr = yrVal ? safeString(yrVal) : '2026';
-        const m3 = safeString(r[map.forecastMonth] || r[map.segmentMonth]).toUpperCase();
+        const m3 = safeString(r[map.forecastMonth]).toUpperCase();
         if (MONTH_ORDER.includes(m3)) {
           if (!result.forecastEntries[yr]) result.forecastEntries[yr] = {};
           if (!result.forecastEntries[yr][m3]) result.forecastEntries[yr][m3] = { rooms: 0, revenue: 0 };
@@ -234,19 +226,19 @@ export default function App({ data = [] }) {
             year: yr,
             month: safeString(r[map.dowMonth]).toUpperCase(),
             metric: safeString(r[map.dowMetric]).toUpperCase(),
-            SUN: Number(r[map.dowSun]) || 0,
-            MON: Number(r[map.dowMon]) || 0,
-            TUE: Number(r[map.dowTue]) || 0,
-            WED: Number(r[map.dowWed]) || 0,
-            THU: Number(r[map.dowThu]) || 0,
-            FRI: Number(r[map.dowFri]) || 0,
-            SAT: Number(r[map.dowSat]) || 0,
+            sun: Number(r[map.dowSun]) || 0,
+            mon: Number(r[map.dowMon]) || 0,
+            tue: Number(r[map.dowTue]) || 0,
+            wed: Number(r[map.dowWed]) || 0,
+            thu: Number(r[map.dowThu]) || 0,
+            fri: Number(r[map.dowFri]) || 0,
+            sat: Number(r[map.dowSat]) || 0,
           });
         }
       }
     });
 
-    const yrSet = new Set(result.rows.map(r => String(r.YEAR)));
+    const yrSet = new Set(result.rows.map(r => String(r.year)));
     if (yrSet.size > 0) result.years = Array.from(yrSet).sort().reverse();
 
     return result;
@@ -258,12 +250,12 @@ export default function App({ data = [] }) {
     if (activeTab === 'trends') {
       const set = new Set(
         rows
-          .map(r => r.METRIC)
+          .map(r => r.metric)
           .filter(m => m && m !== 'TOTAL' && m !== 'COMPLIMENTARY')
       );
       return Array.from(set).sort();
     }
-    if (activeTab === 'pickup & pace' || activeTab === 'pace') {
+    if (activeTab === 'pickup & pace') {
       const set = new Set(
         paceRows
           .filter(r => r.metricType === 'SEGMENT' || r.metricType.includes('SEGMENT') || (r.metric && r.metric !== 'TOTAL'))
@@ -284,40 +276,40 @@ export default function App({ data = [] }) {
   const monthlyTotals = useMemo(() => {
     const targetMetric = selectedSegment === 'ALL' ? 'TOTAL' : selectedSegment.toUpperCase();
     return rows
-      .filter(r => String(r.YEAR) === selectedYear && (r.METRIC === targetMetric || (selectedSegment !== 'ALL' && r.METRIC.includes(targetMetric))))
+      .filter(r => String(r.year) === selectedYear && (r.metric === targetMetric || (selectedSegment !== 'ALL' && r.metric.includes(targetMetric))))
       .map(r => {
-        const month = r.STAY_MONTH;
+        const month = r.month;
         let days = 30;
         if (["JAN", "MAR", "MAY", "JUL", "AUG", "OCT", "DEC"].includes(month)) days = 31;
         else if (month === "FEB") days = 28;
-        const occupancy = (days > 0 && roomsConfig > 0) ? (r.NIGHTS / (days * roomsConfig)) : 0;
+        const occupancy = (days > 0 && roomsConfig > 0) ? (r.nights / (days * roomsConfig)) : 0;
         return { ...r, occupancy };
       })
-      .sort((a, b) => MONTH_ORDER.indexOf(a.STAY_MONTH) - MONTH_ORDER.indexOf(b.STAY_MONTH));
+      .sort((a, b) => MONTH_ORDER.indexOf(a.month) - MONTH_ORDER.indexOf(b.month));
   }, [rows, selectedYear, selectedSegment, roomsConfig]);
 
   const stlyData = useMemo(() => {
     const prevYear = String(Number(selectedYear) - 1);
     const targetMetric = selectedSegment === 'ALL' ? 'TOTAL' : selectedSegment.toUpperCase();
     return rows
-      .filter(r => String(r.YEAR) === prevYear && (r.METRIC === targetMetric || (selectedSegment !== 'ALL' && r.METRIC.includes(targetMetric))))
+      .filter(r => String(r.year) === prevYear && (r.metric === targetMetric || (selectedSegment !== 'ALL' && r.metric.includes(targetMetric))))
       .map(r => {
-        const month = r.STAY_MONTH;
+        const month = r.month;
         let days = 30;
         if (["JAN", "MAR", "MAY", "JUL", "AUG", "OCT", "DEC"].includes(month)) days = 31;
         else if (month === "FEB") days = 28;
-        const occupancy = (days > 0 && roomsConfig > 0) ? (r.NIGHTS / (days * roomsConfig)) : 0;
+        const occupancy = (days > 0 && roomsConfig > 0) ? (r.nights / (days * roomsConfig)) : 0;
         return { ...r, occupancy };
       });
   }, [rows, selectedYear, selectedSegment, roomsConfig]);
 
   const stats = useMemo(() => {
-    const activeData = monthlyTotals.filter(m => activeMonthsList.includes(m.STAY_MONTH));
-    const totalRev = activeData.reduce((acc, d) => acc + d.REVENUE, 0);
-    const totalNights = activeData.reduce((acc, d) => acc + d.NIGHTS, 0);
+    const activeData = monthlyTotals.filter(m => activeMonthsList.includes(m.month));
+    const totalRev = activeData.reduce((acc, d) => acc + d.revenue, 0);
+    const totalNights = activeData.reduce((acc, d) => acc + d.nights, 0);
     const avgADR = totalNights > 0 ? totalRev / totalNights : 0;
-    const totalLead = activeData.length > 0 ? activeData.reduce((acc, d) => acc + d.LEAD_DAYS, 0) / activeData.length : 0;
-    const avgALOS = activeData.length > 0 ? activeData.reduce((acc, d) => acc + d.ALOS, 0) / activeData.length : 0;
+    const totalLead = activeData.length > 0 ? activeData.reduce((acc, d) => acc + d.lead, 0) / activeData.length : 0;
+    const avgALOS = activeData.length > 0 ? activeData.reduce((acc, d) => acc + d.alos, 0) / activeData.length : 0;
     
     const daysInPeriod = activeMonthsList.reduce((acc, month) => {
       if (["JAN", "MAR", "MAY", "JUL", "AUG", "OCT", "DEC"].includes(month)) return acc + 31;
@@ -328,9 +320,9 @@ export default function App({ data = [] }) {
     const occupancy = (daysInPeriod > 0 && roomsConfig > 0) ? (totalNights / (daysInPeriod * roomsConfig)) : 0;
     const revpar = (daysInPeriod > 0 && roomsConfig > 0) ? (totalRev / (daysInPeriod * roomsConfig)) : 0;
 
-    const activeStlyData = stlyData.filter(m => activeMonthsList.includes(m.STAY_MONTH));
-    const stlyRev = activeStlyData.reduce((acc, d) => acc + d.REVENUE, 0);
-    const stlyNights = activeStlyData.reduce((acc, d) => acc + d.NIGHTS, 0);
+    const activeStlyData = stlyData.filter(m => activeMonthsList.includes(m.month));
+    const stlyRev = activeStlyData.reduce((acc, d) => acc + d.revenue, 0);
+    const stlyNights = activeStlyData.reduce((acc, d) => acc + d.nights, 0);
     const stlyADR = stlyNights > 0 ? stlyRev / stlyNights : 0;
     const stlyOccupancy = (daysInPeriod > 0 && roomsConfig > 0) ? (stlyNights / (daysInPeriod * roomsConfig)) : 0;
     const stlyRevPar = (daysInPeriod > 0 && roomsConfig > 0) ? (stlyRev / (daysInPeriod * roomsConfig)) : 0;
@@ -435,46 +427,295 @@ export default function App({ data = [] }) {
 
   const aggregatedSegments = useMemo(() => {
     const filtered = rows.filter(r => 
-      String(r.YEAR) === selectedYear && 
-      r.METRIC !== 'TOTAL' && 
-      r.METRIC !== 'COMPLIMENTARY' &&
-      activeMonthsList.includes(r.STAY_MONTH)
+      String(r.year) === selectedYear && 
+      r.metric !== 'TOTAL' && 
+      r.metric !== 'COMPLIMENTARY' &&
+      activeMonthsList.includes(r.month)
     );
 
     const segmentMap = {};
     filtered.forEach(row => {
-      const key = row.METRIC;
+      const key = row.metric;
       if (!segmentMap[key]) {
-        segmentMap[key] = { METRIC: key, REVENUE: 0, NIGHTS: 0, LEAD_DAYS: 0, count: 0 };
+        segmentMap[key] = { metric: key, revenue: 0, nights: 0, lead: 0, count: 0 };
       }
-      segmentMap[key].REVENUE += (row.REVENUE || 0);
-      segmentMap[key].NIGHTS += (row.NIGHTS || 0);
-      segmentMap[key].LEAD_DAYS += (row.LEAD_DAYS || 0);
+      segmentMap[key].revenue += (row.revenue || 0);
+      segmentMap[key].nights += (row.nights || 0);
+      segmentMap[key].lead += (row.lead || 0);
       segmentMap[key].count += 1;
     });
 
     return Object.values(segmentMap)
       .map(s => ({
         ...s,
-        ADR: s.NIGHTS > 0 ? s.REVENUE / s.NIGHTS : 0,
-        AVG_LEAD: s.count > 0 ? s.LEAD_DAYS / s.count : 0
+        adr: s.nights > 0 ? s.revenue / s.nights : 0,
+        avgLead: s.count > 0 ? s.lead / s.count : 0
       }))
-      .sort((a, b) => b.REVENUE - a.REVENUE);
+      .sort((a, b) => b.revenue - a.revenue);
   }, [rows, selectedYear, activeMonthsList]);
+
+  const dynamicSegments = useMemo(() => {
+    const set = new Set();
+    parsedDOW.forEach(d => {
+      if (d.metric && d.metric.toUpperCase() !== 'TOTAL') set.add(d.metric);
+    });
+    if (set.size === 0) {
+      segmentRows.forEach(s => {
+        if (s.metric && s.metric.toUpperCase() !== 'TOTAL') set.add(s.metric);
+      });
+    }
+    return Array.from(set).sort();
+  }, [parsedDOW, segmentRows]);
+
+  const computedDOW = useMemo(() => {
+    let activeDowRows = parsedDOW.filter(d => String(d.year) === String(selectedYear));
+    
+    if (dowMonthFilter !== 'YEAR') {
+      activeDowRows = activeDowRows.filter(d => String(d.month).toUpperCase() === String(dowMonthFilter).toUpperCase());
+    }
+    
+    if (dowSegmentFilter === 'TOTAL') {
+      activeDowRows = activeDowRows.filter(d => String(d.metric).toUpperCase() === 'TOTAL');
+    } else if (dowSegmentFilter === 'TRANSIENT') {
+      activeDowRows = activeDowRows.filter(d => String(d.metric).toUpperCase().includes('TRANSIENT'));
+    } else if (dowSegmentFilter === 'GROUP') {
+      activeDowRows = activeDowRows.filter(d => String(d.metric).toUpperCase().includes('GROUP'));
+    } else {
+      const target = String(dowSegmentFilter).toUpperCase();
+      activeDowRows = activeDowRows.filter(d => String(d.metric).toUpperCase() === target || String(d.metric).toUpperCase().includes(target));
+    }
+
+    if (activeDowRows.length > 0) {
+      const days = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+      const sums = { sun: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0 };
+      activeDowRows.forEach(row => {
+        days.forEach(day => {
+          sums[day] += (row[day] || 0);
+        });
+      });
+      const count = activeDowRows.length;
+      return {
+        SUN: Math.round(sums.sun / count),
+        MON: Math.round(sums.mon / count),
+        TUE: Math.round(sums.tue / count),
+        WED: Math.round(sums.wed / count),
+        THU: Math.round(sums.thu / count),
+        FRI: Math.round(sums.fri / count),
+        SAT: Math.round(sums.sat / count),
+      };
+    }
+
+    const bases = { SUN: 46.5, MON: 44.2, TUE: 52.8, WED: 53.5, THU: 50.4, FRI: 58.2, SAT: 61.8 };
+    let scaleFactor = 1.0;
+    if (["JUN", "JUL", "AUG"].includes(dowMonthFilter)) scaleFactor *= 1.25;
+    if (["JAN", "FEB", "NOV"].includes(dowMonthFilter)) scaleFactor *= 0.85;
+
+    if (dowSegmentFilter === 'GROUP') {
+      return {
+        SUN: Math.min(95, Math.round(28.0 * scaleFactor)),
+        MON: Math.min(95, Math.round(62.5 * scaleFactor)),
+        TUE: Math.min(95, Math.round(71.8 * scaleFactor)),
+        WED: Math.min(95, Math.round(69.0 * scaleFactor)),
+        THU: Math.min(95, Math.round(58.4 * scaleFactor)),
+        FRI: Math.min(95, Math.round(35.2 * scaleFactor)),
+        SAT: Math.min(95, Math.round(24.5 * scaleFactor))
+      };
+    }
+    if (dowSegmentFilter === 'TRANSIENT') {
+      return {
+        SUN: Math.min(95, Math.round(52.0 * scaleFactor)),
+        MON: Math.min(95, Math.round(38.4 * scaleFactor)),
+        TUE: Math.min(95, Math.round(44.2 * scaleFactor)),
+        WED: Math.min(95, Math.round(46.0 * scaleFactor)),
+        THU: Math.min(95, Math.round(52.1 * scaleFactor)),
+        FRI: Math.min(95, Math.round(78.5 * scaleFactor)),
+        SAT: Math.min(95, Math.round(85.0 * scaleFactor))
+      };
+    }
+
+    return {
+      SUN: Math.min(98, Math.round(bases.SUN * scaleFactor)),
+      MON: Math.min(98, Math.round(bases.MON * scaleFactor)),
+      TUE: Math.min(98, Math.round(bases.TUE * scaleFactor)),
+      WED: Math.min(98, Math.round(bases.WED * scaleFactor)),
+      THU: Math.min(98, Math.round(bases.THU * scaleFactor)),
+      FRI: Math.min(98, Math.round(bases.FRI * scaleFactor)),
+      SAT: Math.min(98, Math.round(bases.SAT * scaleFactor))
+    };
+  }, [parsedDOW, dowSegmentFilter, dowMonthFilter, selectedYear]);
+
+  const displaySegments = useMemo(() => {
+    const segSet = new Set();
+    segmentRows.forEach(r => {
+      const seg = r.metric;
+      if (seg && seg.toUpperCase() !== 'TOTAL' && seg.toUpperCase() !== 'COMPLIMENTARY') {
+        segSet.add(seg);
+      }
+    });
+
+    paceRows.forEach(r => {
+      if (r.metric && r.metric.toUpperCase() !== 'TOTAL') {
+        segSet.add(r.metric);
+      }
+    });
+
+    const segments = Array.from(segSet);
+    const prevYear = Number(selectedYear) - 1;
+
+    const segmentMap = {};
+    segments.forEach(seg => {
+      segmentMap[seg] = { name: seg, actual: 0, stly: 0 };
+    });
+
+    const filteredPace = paceRows.filter(r => 
+      activeMonthsList.includes(r.month) && 
+      r.metric && 
+      r.metric.toUpperCase() !== 'TOTAL'
+    );
+
+    if (filteredPace.length > 0) {
+      filteredPace.forEach(r => {
+        const seg = r.metric;
+        if (!segmentMap[seg]) segmentMap[seg] = { name: seg, actual: 0, stly: 0 };
+        segmentMap[seg].actual += (r.ty || 0);
+        segmentMap[seg].stly += (r.stly || 0);
+      });
+    } else {
+      segmentRows.forEach(r => {
+        const m = r.month;
+        const yr = Number(r.year);
+        const seg = r.metric;
+
+        if (seg && seg.toUpperCase() !== 'TOTAL' && seg.toUpperCase() !== 'COMPLIMENTARY' && activeMonthsList.includes(m)) {
+          if (!segmentMap[seg]) segmentMap[seg] = { name: seg, actual: 0, stly: 0 };
+          if (yr === Number(selectedYear)) {
+            segmentMap[seg].actual += (r.revenue || 0);
+          } else if (yr === prevYear) {
+            segmentMap[seg].stly += (r.revenue || 0);
+          }
+        }
+      });
+    }
+
+    return Object.values(segmentMap)
+      .map(s => {
+        const variancePct = s.stly > 0 ? ((s.actual - s.stly) / s.stly) * 100 : 0;
+        return {
+          name: s.name,
+          actual: s.actual,
+          variance: variancePct
+        };
+      })
+      .filter(s => s.actual > 0 || s.stly > 0)
+      .sort((a, b) => b.actual - a.actual);
+  }, [segmentRows, paceRows, selectedYear, activeMonthsList]);
+
+  const behaviorProfileData = useMemo(() => {
+    let list = segmentRows.filter(r => 
+      String(r.year) === String(selectedYear) && 
+      activeMonthsList.includes(r.month)
+    );
+    if (selectedBehaviorSegment !== 'ALL') {
+      const target = selectedBehaviorSegment.toUpperCase();
+      list = list.filter(r => r.metric.toUpperCase() === target);
+    }
+
+    const totalNights = list.reduce((acc, d) => acc + (d.nights || 0), 0);
+    const totalResn = list.reduce((acc, d) => acc + (d.noResn || d.resn || 0), 0);
+    
+    const calcALOS = totalResn > 0 ? (totalNights / totalResn) : (list.length > 0 ? list.reduce((acc, d) => acc + (d.alos || 0), 0) / list.length : 2.5);
+    const calcLead = list.length > 0 ? list.reduce((acc, d) => acc + (d.lead || d.leadDays || 0), 0) / list.length : 16;
+
+    // Length of stay calculation
+    const losBase = [28, 22, 21, 12, 7, 4, 6];
+    const losFactor = (calcALOS || 2.5) / 2.5;
+    let losScaled = losBase.map((val, idx) => idx < 2 ? Math.round(val / losFactor) : Math.round(val * losFactor));
+    let losSum = losScaled.reduce((a, b) => a + b, 0);
+    if (losSum > 0) losScaled = losScaled.map(val => Math.round((val / losSum) * 100));
+    let losDiff = 100 - losScaled.reduce((a, b) => a + b, 0);
+    if (losDiff !== 0) losScaled[0] = Math.max(0, losScaled[0] + losDiff);
+
+    const losConfig = [
+      { label: "1 NIGHT", style: { backgroundColor: BRAND_COLORS.primary, color: '#b9c3d1' } },
+      { label: "2 NIGHTS", style: { backgroundColor: BRAND_COLORS.teal, color: '#b4d8e0' } },
+      { label: "3 NIGHTS", style: { backgroundColor: BRAND_COLORS.cyan, color: '#b3e4e9' } },
+      { label: "4 NIGHTS", style: { backgroundColor: BRAND_COLORS.aqua, color: BRAND_COLORS.primary } },
+      { label: "5 NIGHTS", style: { backgroundColor: BRAND_COLORS.powder, color: BRAND_COLORS.teal } },
+      { label: "6 NIGHTS", style: { backgroundColor: BRAND_COLORS.frost, border: `2px solid ${BRAND_COLORS.cyan}`, color: BRAND_COLORS.cyan } },
+      { label: "7+ NIGHTS", style: { backgroundColor: BRAND_COLORS.white, border: `2px solid ${BRAND_COLORS.aqua}`, color: BRAND_COLORS.aqua } }
+    ].map((item, i) => ({ ...item, pct: losScaled[i] }));
+
+    // Lead window calculation
+    const leadBase = [18, 5, 9, 34, 23, 15, 1];
+    const leadFactor = (calcLead || 16) / 16;
+    let leadScaled = leadBase.map((val, idx) => idx < 3 ? Math.round(val / leadFactor) : Math.round(val * leadFactor));
+    let leadSum = leadScaled.reduce((a, b) => a + b, 0);
+    if (leadSum > 0) leadScaled = leadScaled.map(val => Math.round((val / leadSum) * 100));
+    let leadDiff = 100 - leadScaled.reduce((a, b) => a + b, 0);
+    if (leadDiff !== 0) leadScaled[0] = Math.max(0, leadScaled[0] + leadDiff);
+
+    const leadConfig = [
+      { label: "0-3 DAYS", style: { backgroundColor: BRAND_COLORS.yellow, color: '#feefd7' }, labelStyle: { color: BRAND_COLORS.yellow } },
+      { label: "4-6 DAYS", style: { backgroundColor: '#ff914d', color: '#ffdeca' }, labelStyle: { color: '#ff914d' } },
+      { label: "7-14 DAYS", style: { backgroundColor: BRAND_COLORS.orange, color: '#fbd8cd' }, labelStyle: { color: BRAND_COLORS.orange } },
+      { label: "15-29 DAYS", style: { backgroundColor: BRAND_COLORS.red, color: BRAND_COLORS.yellow }, labelStyle: { color: BRAND_COLORS.red } },
+      { label: "30-45 DAYS", style: { backgroundColor: '#cf3b4b', color: '#ff914d' }, labelStyle: { color: '#cf3b4b' } },
+      { label: "61-90 DAYS", style: { backgroundColor: '#b4126d', color: BRAND_COLORS.orange }, labelStyle: { color: '#b4126d' } },
+      { label: "91+ DAYS", style: { backgroundColor: BRAND_COLORS.purple, color: BRAND_COLORS.red }, labelStyle: { color: BRAND_COLORS.purple } }
+    ].map((item, i) => ({ ...item, pct: leadScaled[i] }));
+
+    return { losConfig, leadConfig, behaviorSegmentOptions: Array.from(new Set(segmentRows.map(r => r.metric).filter(m => m && m.toUpperCase() !== 'TOTAL' && m.toUpperCase() !== 'COMPLIMENTARY'))).sort() };
+  }, [segmentRows, selectedYear, activeMonthsList, selectedBehaviorSegment]);
 
   const scopeTitle = selectedMonth === 'YEAR' ? 'FULL YEAR' : (selectedMonth === 'YTD' ? 'YTD' : selectedMonth);
   const periodLabel = `${selectedYear || '---'} ${scopeTitle}`;
-  const showSegmentFilter = (activeTab === 'trends' || activeTab === 'pickup & pace' || activeTab === 'pace');
+  const showSegmentFilter = (activeTab === 'trends' || activeTab === 'pickup & pace');
+
+  const renderIndicator = (isNeg, textColor, bgColor) => (
+    <div 
+      className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 shadow-sm"
+      style={{ backgroundColor: textColor }}
+    >
+      <svg 
+        viewBox="0 0 24 24" 
+        className="w-5 h-5 transition-transform duration-300"
+        style={{ transform: isNeg ? 'rotate(180deg)' : 'rotate(0deg)' }}
+      >
+        <path 
+          d="M 12 3 L 4 12 H 8.5 V 21 H 15.5 V 12 H 20 Z" 
+          fill={bgColor} 
+        />
+      </svg>
+    </div>
+  );
+
+  const renderVarianceTag = (val, type, label = "var STLY") => {
+    const isNegative = val < 0;
+    const color = isNegative ? BRAND_COLORS.red : BRAND_COLORS.cyan;
+    let formattedVal = "";
+    if (type === 'percent') formattedVal = `${!isNegative ? "+" : ""}${val.toFixed(2)}%`;
+    else if (type === 'number') formattedVal = `${!isNegative ? "+" : ""}${formatNumber(val)}`;
+    else if (type === 'currency') formattedVal = `${!isNegative ? "+$" : "-$"}${formatNumber(Math.abs(val))}`;
+    else if (type === 'precise_currency') formattedVal = `${!isNegative ? "+$" : "-$"}${Math.abs(val).toFixed(2)}`;
+
+    return (
+      <span className="inline-flex items-center gap-1 font-bold text-[11px] font-roboto" style={{ color: color }}>
+        <span>{isNegative ? "▼" : "▲"}</span>
+        <span>{formattedVal}</span>
+        <span className="font-medium ml-0.5" style={{ color: `${BRAND_COLORS.primary}66` }}>{label}</span>
+      </span>
+    );
+  };
 
   return (
     <div className="min-h-screen font-roboto pb-12" style={{ backgroundColor: BRAND_COLORS.frost, color: BRAND_COLORS.primary }}>
       <style>{fontStyles}</style>
 
+      {/* Header Block */}
       <header className="bg-white border-b sticky top-0 z-40 shadow-sm" style={{ borderColor: `${BRAND_COLORS.aqua}33` }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex flex-col gap-6">
             
-            {/* Row 1: Brand Logo and Dynamic Filters */}
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
               <div className="flex items-center h-[35px]">
                 <svg id="a" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 174.8" className="h-full w-auto">
@@ -491,7 +732,6 @@ export default function App({ data = [] }) {
                 </svg>
               </div>
 
-              {/* Dynamic Filters */}
               <div className="flex items-center gap-3">
                 {showSegmentFilter && (
                   <div className="flex items-center p-1.5 rounded-none border shadow-sm animate-in fade-in duration-300" style={{ backgroundColor: BRAND_COLORS.frost, borderColor: `${BRAND_COLORS.primary}33` }}>
@@ -537,17 +777,16 @@ export default function App({ data = [] }) {
               </div>
             </div>
 
-            {/* Row 2: Headline and Room Count */}
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4 border-t pt-4">
               <h1 className="text-4xl font-bold tracking-tight font-khand uppercase pt-[2px]" style={{ color: BRAND_COLORS.primary }}>
-                METRIC SEGMENTS | {propertyName.toUpperCase()}
+                {propertyName.toUpperCase()} METRICS
               </h1>
               <div className="text-2xl font-bold font-khand uppercase tracking-wider text-slate-400">
                 {roomsConfig} Rooms
               </div>
             </div>
 
-            {/* Row 3: Hugging Tab Navigation Menu */}
+            {/* Inlined Header Tab Navigation Bar */}
             <div className="inline-flex border-[2px] p-1 bg-white" style={{ borderColor: BRAND_COLORS.primary }}>
               {[
                 { id: 'overview', label: 'overview' },
@@ -561,7 +800,7 @@ export default function App({ data = [] }) {
                     setActiveTab(id);
                     setSelectedSegment('ALL');
                   }}
-                  className={`px-5 pt-[10px] pb-2 text-sm font-khand font-bold uppercase tracking-wider transition-all ${
+                  className={`px-5 py-2 text-sm font-khand font-bold uppercase tracking-wider transition-all ${
                     activeTab === id ? '' : 'text-slate-500 hover-text-dynamic'
                   }`}
                   style={activeTab === id ? { backgroundColor: BRAND_COLORS.primary, color: BRAND_COLORS.powder } : { '--hover-color': BRAND_COLORS.primary }}
@@ -575,55 +814,101 @@ export default function App({ data = [] }) {
         </div>
       </header>
 
-      {}
+      {/* Main Dashboard Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
 
-        {/* OVERVIEW TAB */}
+        {/* OVERVIEW TAB VIEW */}
         {activeTab === 'overview' && (
           <div className="space-y-8 animate-in fade-in duration-500">
 
-            {/* Top KPI Banner */}
+            {/* Inlined Top KPI Cards Row */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 w-full select-none">
-              <KPICard 
-                label="REVENUE" 
-                value={formatCompactUSD(stats.totalRev)} 
-                diff={stats.totalRev - stats.stlyRev < 0 ? `(${formatCompact(Math.abs(stats.totalRev - stats.stlyRev)).toLowerCase()})` : `${formatCompact(stats.totalRev - stats.stlyRev).toLowerCase()}`}
-                isNeg={stats.totalRev - stats.stlyRev < 0}
-                bgColor={BRAND_COLORS.primary} 
-                textColor={BRAND_COLORS.powder}
-                labelColor={`${BRAND_COLORS.powder}B3`}
-              />
+              
+              {/* REVENUE KPI CARD */}
+              <div 
+                className="p-5 flex flex-col justify-between h-44 shadow-md transition-transform hover:scale-[1.02] rounded-none border border-black/5"
+                style={{ backgroundColor: BRAND_COLORS.primary }}
+              >
+                <span className="text-lg font-khand font-bold uppercase tracking-wider" style={{ color: `${BRAND_COLORS.powder}B3` }}>
+                  REVENUE
+                </span>
+                <div className="flex flex-col gap-0.5 -mt-4">
+                  <span className="text-4xl md:text-5xl font-khand font-bold uppercase tracking-normal leading-none" style={{ color: BRAND_COLORS.powder }}>
+                    {formatCompactUSD(stats.totalRev)}
+                  </span>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    {renderIndicator(stats.totalRev - stats.stlyRev < 0, BRAND_COLORS.powder, BRAND_COLORS.primary)}
+                    <span className="text-sm font-roboto font-medium tracking-normal" style={{ color: BRAND_COLORS.powder }}>
+                      {stats.totalRev - stats.stlyRev < 0 ? `(${formatCompact(Math.abs(stats.totalRev - stats.stlyRev)).toLowerCase()})` : `${formatCompact(stats.totalRev - stats.stlyRev).toLowerCase()}`}
+                    </span>
+                  </div>
+                </div>
+              </div>
 
-              <KPICard 
-                label="OCCUPANCY" 
-                value={`${(stats.occupancy * 100).toFixed(1)}%`} 
-                diff={`${Math.abs((stats.occupancy - stats.stlyOccupancy) * 100).toFixed(1)}%`}
-                isNeg={(stats.occupancy - stats.stlyOccupancy) < 0}
-                bgColor={BRAND_COLORS.teal} 
-                textColor="#FFFFFF"
-                labelColor="#FFFFFFB3"
-              />
+              {/* OCCUPANCY KPI CARD */}
+              <div 
+                className="p-5 flex flex-col justify-between h-44 shadow-md transition-transform hover:scale-[1.02] rounded-none border border-black/5"
+                style={{ backgroundColor: BRAND_COLORS.teal }}
+              >
+                <span className="text-lg font-khand font-bold uppercase tracking-wider" style={{ color: "#FFFFFFB3" }}>
+                  OCCUPANCY
+                </span>
+                <div className="flex flex-col gap-0.5 -mt-4">
+                  <span className="text-4xl md:text-5xl font-khand font-bold uppercase tracking-normal leading-none" style={{ color: "#FFFFFF" }}>
+                    {(stats.occupancy * 100).toFixed(1)}%
+                  </span>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    {renderIndicator((stats.occupancy - stats.stlyOccupancy) < 0, "#FFFFFF", BRAND_COLORS.teal)}
+                    <span className="text-sm font-roboto font-medium tracking-normal" style={{ color: "#FFFFFF" }}>
+                      {`${Math.abs((stats.occupancy - stats.stlyOccupancy) * 100).toFixed(1)}%`}
+                    </span>
+                  </div>
+                </div>
+              </div>
 
-              <KPICard 
-                label="AVG RATE" 
-                value={formatPreciseCurrency(stats.avgADR)} 
-                diff={`($${Math.abs(stats.avgADR - stats.stlyADR).toFixed(2)})`}
-                isNeg={stats.avgADR - stats.stlyADR < 0}
-                bgColor={BRAND_COLORS.cyan} 
-                textColor={BRAND_COLORS.yellow}
-                labelColor={`${BRAND_COLORS.yellow}B3`}
-              />
+              {/* AVG RATE KPI CARD */}
+              <div 
+                className="p-5 flex flex-col justify-between h-44 shadow-md transition-transform hover:scale-[1.02] rounded-none border border-black/5"
+                style={{ backgroundColor: BRAND_COLORS.cyan }}
+              >
+                <span className="text-lg font-khand font-bold uppercase tracking-wider" style={{ color: `${BRAND_COLORS.yellow}B3` }}>
+                  AVG RATE
+                </span>
+                <div className="flex flex-col gap-0.5 -mt-4">
+                  <span className="text-4xl md:text-5xl font-khand font-bold uppercase tracking-normal leading-none" style={{ color: BRAND_COLORS.yellow }}>
+                    {formatPreciseCurrency(stats.avgADR)}
+                  </span>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    {renderIndicator(stats.avgADR - stats.stlyADR < 0, BRAND_COLORS.yellow, BRAND_COLORS.cyan)}
+                    <span className="text-sm font-roboto font-medium tracking-normal" style={{ color: BRAND_COLORS.yellow }}>
+                      {`($${Math.abs(stats.avgADR - stats.stlyADR).toFixed(2)})`}
+                    </span>
+                  </div>
+                </div>
+              </div>
 
-              <KPICard 
-                label="ROOMS SOLD" 
-                value={formatNumber(stats.totalNights)} 
-                diff={formatNumber(Math.abs(stats.totalNights - stats.stlyNights))}
-                isNeg={stats.totalNights - stats.stlyNights < 0}
-                bgColor={BRAND_COLORS.aqua} 
-                textColor={BRAND_COLORS.teal}
-                labelColor={`${BRAND_COLORS.teal}B3`}
-              />
+              {/* ROOMS SOLD KPI CARD */}
+              <div 
+                className="p-5 flex flex-col justify-between h-44 shadow-md transition-transform hover:scale-[1.02] rounded-none border border-black/5"
+                style={{ backgroundColor: BRAND_COLORS.aqua }}
+              >
+                <span className="text-lg font-khand font-bold uppercase tracking-wider" style={{ color: `${BRAND_COLORS.teal}B3` }}>
+                  ROOMS SOLD
+                </span>
+                <div className="flex flex-col gap-0.5 -mt-4">
+                  <span className="text-4xl md:text-5xl font-khand font-bold uppercase tracking-normal leading-none" style={{ color: BRAND_COLORS.teal }}>
+                    {formatNumber(stats.totalNights)}
+                  </span>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    {renderIndicator(stats.totalNights - stats.stlyNights < 0, BRAND_COLORS.teal, BRAND_COLORS.aqua)}
+                    <span className="text-sm font-roboto font-medium tracking-normal" style={{ color: BRAND_COLORS.teal }}>
+                      {formatNumber(Math.abs(stats.totalNights - stats.stlyNights))}
+                    </span>
+                  </div>
+                </div>
+              </div>
 
+              {/* LEAD DAYS KPI CARD */}
               <div 
                 className="p-5 flex flex-col justify-center items-center text-center h-44 shadow-md transition-transform hover:scale-[1.02] rounded-none border border-black/5"
                 style={{ backgroundColor: BRAND_COLORS.powder }}
@@ -637,32 +922,149 @@ export default function App({ data = [] }) {
               </div>
             </div>
 
-            {/* DOW and Segment Pace Section */}
+            {/* Inlined DOW and Pace Visualizers Row */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+              
+              {/* INLINED DAY OF WEEK OCCUPANCY WIDGET */}
               <div className="lg:col-span-7">
-                <DayOfWeekOccupancy 
-                  selectedYear={selectedYear}
-                  parsedDOW={parsedDOW}
-                  segmentRows={segmentRows}
-                  dowSegmentFilter={dowSegmentFilter}
-                  setDowSegmentFilter={setDowSegmentFilter}
-                  dowMonthFilter={dowMonthFilter}
-                  setDowMonthFilter={setDowMonthFilter}
-                />
+                <div className="bg-[#fafafa] border-[3px] p-6 flex flex-col h-full relative rounded-none" style={{ borderColor: BRAND_COLORS.primary }}>
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b-[3px] pb-5 mb-6 gap-4" style={{ borderColor: `${BRAND_COLORS.primary}1A` }}>
+                    <div>
+                      <h3 className="font-khand text-xl font-bold uppercase tracking-wider" style={{ color: BRAND_COLORS.primary }}>
+                        DAY OF WEEK OCCUPANCY
+                      </h3>
+                      <p className="text-xs font-medium tracking-wide uppercase" style={{ color: `${BRAND_COLORS.primary}99` }}>
+                        HISTORICAL TREND FOR SELECTED PERIOD
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center p-1 border rounded-none text-xs" style={{ backgroundColor: BRAND_COLORS.frost, borderColor: `${BRAND_COLORS.primary}33` }}>
+                        <Layers size={12} className="ml-1" style={{ color: BRAND_COLORS.cyan }} />
+                        <select
+                          value={dowSegmentFilter}
+                          onChange={(e) => setDowSegmentFilter(e.target.value)}
+                          className="bg-transparent border-none py-0.5 pl-1.5 pr-6 text-[10px] font-bold tracking-wider uppercase cursor-pointer focus:ring-0 rounded-none"
+                          style={{ color: BRAND_COLORS.primary }}>
+                          <option value="TOTAL">ALL SEGMENTS</option>
+                          <option value="TRANSIENT">TRANSIENT</option>
+                          <option value="GROUP">GROUP</option>
+                          {dynamicSegments.map(seg => (
+                            <option key={seg} value={seg}>{seg}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex items-center p-1 border rounded-none text-xs" style={{ backgroundColor: BRAND_COLORS.frost, borderColor: `${BRAND_COLORS.primary}33` }}>
+                        <Calendar size={12} className="ml-1" style={{ color: BRAND_COLORS.cyan }} />
+                        <select
+                          value={dowMonthFilter}
+                          onChange={(e) => setDowMonthFilter(e.target.value)}
+                          className="bg-transparent border-none py-0.5 pl-1.5 pr-6 text-[10px] font-khand font-bold tracking-wider uppercase cursor-pointer focus:ring-0 rounded-none"
+                          style={{ color: BRAND_COLORS.primary }}>
+                          <option value="YEAR">FULL YEAR</option>
+                          {MONTH_ORDER.map(m => (
+                            <option key={m} value={m}>{m} VIEW</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-7 gap-3 sm:gap-4 flex-1 items-end pt-12 pb-2">
+                    {["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"].map((day) => {
+                      const val = computedDOW[day];
+                      const isHovered = hoveredDay === day || (!hoveredDay && day === "THU");
+
+                      return (
+                        <div 
+                          key={day} 
+                          className="flex flex-col items-center group cursor-pointer relative h-full justify-end"
+                          onMouseEnter={() => setHoveredDay(day)}
+                          onMouseLeave={() => setHoveredDay(null)}
+                        >
+                          <div 
+                            className={`absolute -top-7 transition-all duration-300 transform -translate-y-2 text-white text-[10px] sm:text-xs font-bold px-2 py-1 rounded-none shadow-md pointer-events-none z-10 ${
+                              isHovered ? 'opacity-100 scale-100' : 'opacity-0 scale-90'
+                            }`} style={{ backgroundColor: BRAND_COLORS.primary }}
+                          >
+                            {val}%
+                            <div className="absolute left-1/2 -bottom-1 transform -translate-x-1/2 w-2 h-2 rotate-45" style={{ backgroundColor: BRAND_COLORS.primary }}></div>
+                          </div>
+
+                          <div className="w-full border-2 rounded-none aspect-[1/3.5] flex flex-col justify-end p-0.5 overflow-hidden" style={{ backgroundColor: BRAND_COLORS.frost, borderColor: `${BRAND_COLORS.primary}1A` }}>
+                            <div 
+                              className="w-full rounded-none transition-all duration-500 ease-out"
+                              style={{ height: `${val}%`, backgroundColor: BRAND_COLORS.cyan }}
+                            />
+                          </div>
+
+                          <span className="text-[10px] sm:text-xs font-khand font-bold uppercase tracking-wider group-hover-text-dynamic mt-3" style={{ color: `${BRAND_COLORS.primary}99`, '--group-hover-color': BRAND_COLORS.primary }}>
+                            {day}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
 
+              {/* INLINED SEGMENT PACE CHART WIDGET */}
               <div className="lg:col-span-5">
-                <SegmentPaceChart 
-                  segmentRows={segmentRows}
-                  paceRows={paceRows}
-                  selectedYear={selectedYear}
-                  activeMonthsList={activeMonthsList}
-                  periodLabel={`${selectedYear} ${scopeTitle}`}
-                />
+                <div className="bg-[#fafafa] border-[3px] p-6 flex flex-col h-full justify-between rounded-none" style={{ borderColor: BRAND_COLORS.primary }}>
+                  <div>
+                    <div className="flex justify-between items-start border-b-[3px] pb-5 mb-6" style={{ borderColor: `${BRAND_COLORS.primary}1A` }}>
+                      <div>
+                        <h3 className="font-khand text-xl font-bold uppercase tracking-wider" style={{ color: BRAND_COLORS.primary }}>
+                          PACE VS STLY
+                        </h3>
+                        <p className="text-xs font-medium tracking-wide uppercase" style={{ color: `${BRAND_COLORS.primary}99` }}>
+                          HISTORICAL REVENUE COMPARISON
+                        </p>
+                      </div>
+                      <TrendingUp className="w-5 h-5 mt-1" style={{ color: BRAND_COLORS.cyan }} />
+                    </div>
+                    
+                    <div className="space-y-4">
+                      {displaySegments.map((seg, idx) => {
+                        const isNegative = seg.variance < 0;
+
+                        return (
+                          <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div className="w-full sm:w-1/3">
+                              <span className="font-khand font-bold text-xs uppercase tracking-wider truncate block" style={{ color: BRAND_COLORS.primary }}>
+                                {seg.name}
+                              </span>
+                            </div>
+
+                            <div className="flex-1 flex items-center justify-between p-2 rounded-none border transition-colors" style={{ borderColor: `${BRAND_COLORS.primary}33`, backgroundColor: BRAND_COLORS.frost }}>
+                              <span className="font-bold text-xs" style={{ color: BRAND_COLORS.primary }}>
+                                {formatCurrency(seg.actual)}
+                              </span>
+                              
+                              <span className="inline-flex px-2 py-0.5 text-[10px] font-bold rounded-none" style={{ backgroundColor: isNegative ? `${BRAND_COLORS.red}1A` : `${BRAND_COLORS.cyan}1A`, color: isNegative ? BRAND_COLORS.red : BRAND_COLORS.teal }}>
+                                {seg.variance >= 0 ? '+' : ''}{seg.variance.toFixed(1)}%
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {displaySegments.length === 0 && (
+                        <p className="text-center py-8 text-xs font-khand font-bold uppercase tracking-wider opacity-60" style={{ color: BRAND_COLORS.primary }}>
+                          No Segment Pacing Data Available
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="border-t-[3px] pt-4 mt-6 flex justify-between items-center text-[10px] font-bold uppercase tracking-widest" style={{ borderColor: `${BRAND_COLORS.primary}1A`, color: `${BRAND_COLORS.primary}66` }}>
+                    <span>STLY COMPARISON</span>
+                    <span>{periodLabel}</span>
+                  </div>
+                </div>
               </div>
+
             </div>
 
-            {/* Performance Matrix and Segment Mix */}
+            {/* Inlined Performance Summary and Segment Revenue Mix Row */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-[3px] border-[3px] w-full shadow-md rounded-none" style={{ backgroundColor: BRAND_COLORS.primary, borderColor: BRAND_COLORS.primary }}>
               <div className="lg:col-span-2 bg-[#fafafa]">
                 <div className="p-6 border-b-[3px] bg-[#fafafa] flex justify-between items-center" style={{ borderColor: BRAND_COLORS.primary }}>
@@ -682,18 +1084,18 @@ export default function App({ data = [] }) {
                       </tr>
                     </thead>
                     <tbody className="font-roboto">
-                      {monthlyTotals.filter(m => activeMonthsList.includes(m.STAY_MONTH)).map((m, idx) => (
+                      {monthlyTotals.filter(m => activeMonthsList.includes(m.month)).map((m, idx) => (
                         <tr key={idx} className="transition-colors group hover-bg-dynamic" style={{'--hover-bg-color': `${BRAND_COLORS.primary}0D`}}>
-                          <td className="px-6 py-4 font-bold" style={{ color: BRAND_COLORS.primary }}>{m.STAY_MONTH}</td>
-                          <td className="px-6 py-4 font-medium">{formatCurrency(m.REVENUE)}</td>
+                          <td className="px-6 py-4 font-bold" style={{ color: BRAND_COLORS.primary }}>{m.month}</td>
+                          <td className="px-6 py-4 font-medium">{formatCurrency(m.revenue)}</td>
                           <td className="px-6 py-4">
                             <span className="inline-flex items-center p-2 rounded-none text-xs font-bold" style={{ backgroundColor: BRAND_COLORS.primary, color: BRAND_COLORS.powder }}>
                               {(m.occupancy * 100).toFixed(1)}%
                             </span>
                           </td>
-                          <td className="px-6 py-4" style={{ color: `${BRAND_COLORS.primary}CC` }}>{formatNumber(m.NIGHTS)}</td>
-                          <td className="px-6 py-4 font-bold" style={{ color: BRAND_COLORS.cyan }}>{formatPreciseCurrency(m.ADR)}</td>
-                          <td className="px-6 py-4 text-right" style={{ color: `${BRAND_COLORS.primary}99` }}>{(m.ALOS || 0).toFixed(1)}d</td>
+                          <td className="px-6 py-4" style={{ color: `${BRAND_COLORS.primary}CC` }}>{formatNumber(m.nights)}</td>
+                          <td className="px-6 py-4 font-bold" style={{ color: BRAND_COLORS.cyan }}>{formatPreciseCurrency(m.adr)}</td>
+                          <td className="px-6 py-4 text-right" style={{ color: `${BRAND_COLORS.primary}99` }}>{(m.alos || 0).toFixed(1)}d</td>
                         </tr>
                       ))}
                     </tbody>
@@ -707,13 +1109,13 @@ export default function App({ data = [] }) {
                   {aggregatedSegments.slice(0, 7).map((s, i) => (
                     <div key={i} className="animate-in fade-in slide-in-from-right-2 duration-300" style={{ animationDelay: `${i * 100}ms` }}>
                       <div className="flex justify-between items-center mb-1 text-[11px] font-bold">
-                        <span className="uppercase truncate pr-4" style={{ color: `${BRAND_COLORS.primary}CC` }}>{s.METRIC}</span>
-                        <span className="font-khand text-sm" style={{ color: BRAND_COLORS.cyan }}>{formatCompact(s.REVENUE)}</span>
+                        <span className="uppercase truncate pr-4" style={{ color: `${BRAND_COLORS.primary}CC` }}>{s.metric}</span>
+                        <span className="font-khand text-sm" style={{ color: BRAND_COLORS.cyan }}>{formatCompact(s.revenue)}</span>
                       </div>
                       <div className="w-full h-2 overflow-hidden border rounded-none" style={{ backgroundColor: BRAND_COLORS.frost, borderColor: `${BRAND_COLORS.aqua}1A` }}>
                         <div 
                           className="h-full transition-all duration-1000 ease-out rounded-none"
-                          style={{ width: `${stats.totalRev > 0 ? (s.REVENUE / stats.totalRev) * 100 : 0}%`, backgroundColor: BRAND_COLORS.cyan }}
+                          style={{ width: `${stats.totalRev > 0 ? (s.revenue / stats.totalRev) * 100 : 0}%`, backgroundColor: BRAND_COLORS.cyan }}
                         />
                       </div>
                     </div>
@@ -732,17 +1134,80 @@ export default function App({ data = [] }) {
               </div>
             </div>
 
-            {/* Guest Behavior Panel */}
-            <GuestBehaviorProfiles 
-              segmentRows={segmentRows}
-              selectedYear={selectedYear}
-              activeMonthsList={activeMonthsList}
-              periodLabel={`${selectedYear} ${scopeTitle.toUpperCase()}`} 
-            />
+            {/* INLINED GUEST BEHAVIOR PROFILES MODULE */}
+            <div className="bg-[#fafafa] border-[3px] p-8 md:p-10 w-full space-y-10 shadow-sm rounded-none" style={{ borderColor: BRAND_COLORS.primary }}>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-6 border-b-[3px] gap-4" style={{ borderColor: `${BRAND_COLORS.primary}1A` }}>
+                <div>
+                  <h3 className="font-khand text-2xl font-bold uppercase tracking-wider" style={{ color: BRAND_COLORS.primary }}>
+                    GUEST BEHAVIOR PROFILES
+                  </h3>
+                  <p className="text-xs font-medium tracking-wide uppercase" style={{ color: `${BRAND_COLORS.primary}99` }}>
+                    LENGTH OF STAY AND BOOKING WINDOW DISTRIBUTIONS
+                  </p>
+                </div>
+                
+                <div className="flex items-center p-1.5 border rounded-none text-xs" style={{ backgroundColor: BRAND_COLORS.frost, borderColor: `${BRAND_COLORS.primary}33` }}>
+                  <Layers size={14} className="ml-1" style={{ color: BRAND_COLORS.cyan }} />
+                  <select
+                    value={selectedBehaviorSegment}
+                    onChange={(e) => setSelectedBehaviorSegment(e.target.value)}
+                    className="bg-transparent border-none py-0.5 pl-2 pr-8 text-xs font-khand font-bold tracking-wider uppercase cursor-pointer focus:ring-0 rounded-none"
+                    style={{ color: BRAND_COLORS.primary }}>
+                    <option value="ALL">ALL SEGMENTS</option>
+                    {behaviorProfileData.behaviorSegmentOptions.map(seg => (
+                      <option key={seg} value={seg}>{seg}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Length of Stay Row */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+                <div className="lg:col-span-3">
+                  <h4 className="font-khand uppercase font-bold text-xl tracking-wider leading-none" style={{ color: BRAND_COLORS.primary }}>
+                    LENGTH OF STAY
+                  </h4>
+                </div>
+                <div className="lg:col-span-9 grid grid-cols-3 sm:grid-cols-7 gap-2.5">
+                  {behaviorProfileData.losConfig.map((item, idx) => (
+                    <div key={idx} className="flex flex-col space-y-2">
+                      <div className="aspect-square flex items-center justify-center font-khand font-bold text-3xl md:text-4xl shadow-sm rounded-none" style={item.style}>
+                        {String(item.pct).padStart(2, '0')}%
+                      </div>
+                      <span className="text-[10px] font-khand uppercase font-bold text-center tracking-wider block" style={{ color: `${BRAND_COLORS.primary}99` }}>
+                        {item.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Lead Window Row */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center pt-8 border-t" style={{ borderColor: `${BRAND_COLORS.primary}1A` }}>
+                <div className="lg:col-span-3">
+                  <h4 className="font-khand uppercase font-bold text-xl tracking-wider leading-none" style={{ color: BRAND_COLORS.primary }}>
+                    LEAD WINDOW
+                  </h4>
+                </div>
+                <div className="lg:col-span-9 grid grid-cols-3 sm:grid-cols-7 gap-2.5">
+                  {behaviorProfileData.leadConfig.map((item, idx) => (
+                    <div key={idx} className="flex flex-col space-y-2">
+                      <div className="aspect-square flex items-center justify-center font-khand font-bold text-3xl md:text-4xl shadow-sm rounded-none" style={item.style}>
+                        {String(item.pct).padStart(2, '0')}%
+                      </div>
+                      <span className="text-[10px] font-khand font-bold uppercase text-center tracking-wider block leading-none" style={item.labelStyle}>
+                        {item.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
           </div>
         )}
 
-        {/* MONTHLY TRENDS TAB */}
+        {/* MONTHLY TRENDS TAB VIEW */}
         {activeTab === 'trends' && (
           <div className="space-y-8 animate-in fade-in duration-500">
             <div className="bg-[#fafafa] border-[3px] p-8 md:p-10 w-full flex flex-col md:flex-row md:justify-between md:items-center gap-8 shadow-sm rounded-none" style={{ borderColor: BRAND_COLORS.primary }}>
@@ -756,32 +1221,254 @@ export default function App({ data = [] }) {
                   )}
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 pt-2">
-                  <MetricBrief label="Occupancy" value={`${(stats.occupancy * 100).toFixed(1)}%`} variance={renderVariance(variances.occupancyDiff, 'percent')} />
-                  <MetricBrief label="Rooms Sold" value={formatNumber(stats.totalNights)} variance={renderVariance(variances.nightsDiff, 'number')} />
-                  <MetricBrief label="ADR" value={formatPreciseCurrency(stats.avgADR)} variance={renderVariance(variances.adrDiff, 'precise_currency')} />
-                  <MetricBrief label="RevPAR" value={formatPreciseCurrency(stats.revpar)} variance={renderVariance(variances.revparDiff, 'precise_currency')} />
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider font-bold mb-1" style={{ color: `${BRAND_COLORS.primary}80` }}>Occupancy</p>
+                    <p className="text-2xl md:text-3xl font-khand font-bold leading-none mb-1" style={{ color: BRAND_COLORS.primary }}>{`${(stats.occupancy * 100).toFixed(1)}%`}</p>
+                    {renderVarianceTag(variances.occupancyDiff, 'percent')}
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider font-bold mb-1" style={{ color: `${BRAND_COLORS.primary}80` }}>Rooms Sold</p>
+                    <p className="text-2xl md:text-3xl font-khand font-bold leading-none mb-1" style={{ color: BRAND_COLORS.primary }}>{formatNumber(stats.totalNights)}</p>
+                    {renderVarianceTag(variances.nightsDiff, 'number')}
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider font-bold mb-1" style={{ color: `${BRAND_COLORS.primary}80` }}>ADR</p>
+                    <p className="text-2xl md:text-3xl font-khand font-bold leading-none mb-1" style={{ color: BRAND_COLORS.primary }}>{formatPreciseCurrency(stats.avgADR)}</p>
+                    {renderVarianceTag(variances.adrDiff, 'precise_currency')}
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider font-bold mb-1" style={{ color: `${BRAND_COLORS.primary}80` }}>RevPAR</p>
+                    <p className="text-2xl md:text-3xl font-khand font-bold leading-none mb-1" style={{ color: BRAND_COLORS.primary }}>{formatPreciseCurrency(stats.revpar)}</p>
+                    {renderVarianceTag(variances.revparDiff, 'precise_currency')}
+                  </div>
                 </div>
               </div>
               <div className="flex flex-col md:items-end justify-center min-w-[240px] pt-4 md:pt-0 md:border-l-[3px] md:pl-10" style={{ borderColor: `${BRAND_COLORS.primary}1A` }}>
                 <h3 className="text-2xl font-khand font-bold uppercase leading-none mb-2" style={{ color: BRAND_COLORS.primary }}>Revenue</h3>
                 <p className="text-5xl md:text-6xl font-khand font-bold tracking-tight leading-none mb-2" style={{ color: BRAND_COLORS.primary }}>{formatCurrency(stats.totalRev)}</p>
-                {renderVariance(variances.revenueDiff, 'currency')}
+                {renderVarianceTag(variances.revenueDiff, 'currency')}
               </div>
             </div>
 
+            {/* Inlined Budget and Forecast Target Pacing Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-[3px] border-[3px] w-full shadow-md rounded-none" style={{ backgroundColor: BRAND_COLORS.primary, borderColor: BRAND_COLORS.primary }}>
-              <PacingCard title="Budget" actual={stats.totalRev} target={planningStats.budget} variances={targetVariances.budget} />
-              <PacingCard title="Forecast" actual={stats.totalRev} target={planningStats.forecast} variances={targetVariances.forecast} />
+              
+              {/* BUDGET PACING CARD */}
+              <div className="bg-[#fafafa] p-8 flex flex-col justify-between transition-colors duration-200 rounded-none" style={{ color: BRAND_COLORS.primary }}>
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-6">
+                  <div className="sm:col-span-7 flex flex-col justify-between space-y-6">
+                    <div className="flex gap-10">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wider font-bold mb-1" style={{ color: `${BRAND_COLORS.primary}80` }}>OCCP</p>
+                        <p className="text-2xl md:text-3xl font-khand font-bold leading-none mb-1" style={{ color: BRAND_COLORS.primary }}>{`${(planningStats.budget.occupancy * 100).toFixed(1)}%`}</p>
+                        {renderVarianceTag(targetVariances.budget.occupancyDiff, 'percent', 'to PY')}
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wider font-bold mb-1" style={{ color: `${BRAND_COLORS.primary}80` }}>ROOMS</p>
+                        <p className="text-2xl md:text-3xl font-khand font-bold leading-none mb-1" style={{ color: BRAND_COLORS.primary }}>{formatNumber(planningStats.budget.rooms)}</p>
+                        {renderVarianceTag(targetVariances.budget.roomsDiff, 'number', 'to PY')}
+                      </div>
+                    </div>
+                    <div>
+                      <h3 className="text-5xl font-khand font-bold uppercase tracking-tight leading-none mb-1" style={{ color: BRAND_COLORS.primary }}>Budget</h3>
+                      <p className="text-3xl font-roboto font-bold tracking-tight leading-none mb-2" style={{ color: `${BRAND_COLORS.primary}E6` }}>{formatCurrency(planningStats.budget.revenue)}</p>
+                      {renderVarianceTag(targetVariances.budget.revenueDiff, 'currency', 'to PY')}
+                    </div>
+                    <div className="flex flex-col space-y-1">
+                      <div className="flex items-end gap-[3px] h-[26px]">
+                        {Array.from({ length: 34 }).map((_, i) => {
+                          const activeTicks = Math.round((Math.min(100, Math.max(0, targetVariances.budget.reachedPct)) / 100) * 34);
+                          return (
+                            <div key={i} className={`w-[4px] transition-all duration-500 ease-out ${i === 33 ? 'h-6' : (i % 4 === 0 ? 'h-4' : 'h-3')}`} style={{ backgroundColor: i <= activeTicks ? BRAND_COLORS.primary : BRAND_COLORS.frost, border: i === 33 ? `1px solid ${BRAND_COLORS.primary}` : 'none' }} />
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="sm:col-span-5 flex flex-col items-center justify-center">
+                    <div className="flex flex-col items-center justify-center space-y-4">
+                      <div className="relative w-[150px] h-[150px] flex items-center justify-center">
+                        <svg width={150} height={150} viewBox="0 0 150 150" className="transform -rotate-90">
+                          <circle cx={75} cy={75} r={66} stroke={BRAND_COLORS.orange} strokeWidth={18} fill="transparent" />
+                          <circle cx={75} cy={75} r={66} stroke={BRAND_COLORS.purple} strokeWidth={18} strokeDasharray={2 * Math.PI * 66} strokeDashoffset={(2 * Math.PI * 66) - (Math.min(100, targetVariances.budget.reachedPct) / 100) * (2 * Math.PI * 66)} fill="transparent" strokeLinecap="square" className="transition-all duration-1000 ease-out" />
+                        </svg>
+                        <div className="absolute text-center flex flex-col font-roboto">
+                          <span className="text-base font-bold leading-none" style={{ color: BRAND_COLORS.primary }}>{formatCompactUSD(stats.totalRev)}</span>
+                          <span className="text-[8px] font-khand font-bold opacity-50 uppercase mt-1 tracking-wider">OTB REACH</span>
+                          <span className="text-[10px] font-bold mt-0.5" style={{ color: BRAND_COLORS.purple }}>{targetVariances.budget.reachedPct.toFixed(1)}%</span>
+                        </div>
+                      </div>
+                      <div className="text-[10px] font-roboto space-y-1 w-full max-w-[130px] border-t pt-2.5" style={{ borderColor: `${BRAND_COLORS.primary}1A` }}>
+                        <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5" style={{ backgroundColor: BRAND_COLORS.purple }} /><span className="font-semibold" style={{ color: `${BRAND_COLORS.primary}CC` }}>OTB (Actuals)</span></div>
+                        <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5" style={{ backgroundColor: BRAND_COLORS.orange }} /><span className="font-semibold truncate" style={{ color: `${BRAND_COLORS.primary}CC` }}>Budget Target</span></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center border-t pt-6 mt-6" style={{ borderColor: `${BRAND_COLORS.primary}1A` }}>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider font-bold mb-1" style={{ color: `${BRAND_COLORS.primary}80` }}>ADR</p>
+                    <p className="text-2xl md:text-3xl font-khand font-bold leading-none mb-1" style={{ color: BRAND_COLORS.primary }}>{formatPreciseCurrency(planningStats.budget.adr)}</p>
+                    {renderVarianceTag(targetVariances.budget.adrDiff, 'precise_currency', 'to PY')}
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider font-bold mb-1" style={{ color: `${BRAND_COLORS.primary}80` }}>REVPAR</p>
+                    <p className="text-2xl md:text-3xl font-khand font-bold leading-none mb-1" style={{ color: BRAND_COLORS.primary }}>{formatPreciseCurrency(planningStats.budget.revpar)}</p>
+                    {renderVarianceTag(targetVariances.budget.revparDiff, 'precise_currency', 'to PY')}
+                  </div>
+                </div>
+              </div>
+
+              {/* FORECAST PACING CARD */}
+              <div className="bg-[#fafafa] p-8 flex flex-col justify-between transition-colors duration-200 rounded-none" style={{ color: BRAND_COLORS.primary }}>
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-6">
+                  <div className="sm:col-span-7 flex flex-col justify-between space-y-6">
+                    <div className="flex gap-10">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wider font-bold mb-1" style={{ color: `${BRAND_COLORS.primary}80` }}>OCCP</p>
+                        <p className="text-2xl md:text-3xl font-khand font-bold leading-none mb-1" style={{ color: BRAND_COLORS.primary }}>{`${(planningStats.forecast.occupancy * 100).toFixed(1)}%`}</p>
+                        {renderVarianceTag(targetVariances.forecast.occupancyDiff, 'percent', 'to PY')}
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wider font-bold mb-1" style={{ color: `${BRAND_COLORS.primary}80` }}>ROOMS</p>
+                        <p className="text-2xl md:text-3xl font-khand font-bold leading-none mb-1" style={{ color: BRAND_COLORS.primary }}>{formatNumber(planningStats.forecast.rooms)}</p>
+                        {renderVarianceTag(targetVariances.forecast.roomsDiff, 'number', 'to PY')}
+                      </div>
+                    </div>
+                    <div>
+                      <h3 className="text-5xl font-khand font-bold uppercase tracking-tight leading-none mb-1" style={{ color: BRAND_COLORS.primary }}>Forecast</h3>
+                      <p className="text-3xl font-roboto font-bold tracking-tight leading-none mb-2" style={{ color: `${BRAND_COLORS.primary}E6` }}>{formatCurrency(planningStats.forecast.revenue)}</p>
+                      {renderVarianceTag(targetVariances.forecast.revenueDiff, 'currency', 'to PY')}
+                    </div>
+                    <div className="flex flex-col space-y-1">
+                      <div className="flex items-end gap-[3px] h-[26px]">
+                        {Array.from({ length: 34 }).map((_, i) => {
+                          const activeTicks = Math.round((Math.min(100, Math.max(0, targetVariances.forecast.reachedPct)) / 100) * 34);
+                          return (
+                            <div key={i} className={`w-[4px] transition-all duration-500 ease-out ${i === 33 ? 'h-6' : (i % 4 === 0 ? 'h-4' : 'h-3')}`} style={{ backgroundColor: i <= activeTicks ? BRAND_COLORS.primary : BRAND_COLORS.frost, border: i === 33 ? `1px solid ${BRAND_COLORS.primary}` : 'none' }} />
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="sm:col-span-5 flex flex-col items-center justify-center">
+                    <div className="flex flex-col items-center justify-center space-y-4">
+                      <div className="relative w-[150px] h-[150px] flex items-center justify-center">
+                        <svg width={150} height={150} viewBox="0 0 150 150" className="transform -rotate-90">
+                          <circle cx={75} cy={75} r={66} stroke={BRAND_COLORS.orange} strokeWidth={18} fill="transparent" />
+                          <circle cx={75} cy={75} r={66} stroke={BRAND_COLORS.purple} strokeWidth={18} strokeDasharray={2 * Math.PI * 66} strokeDashoffset={(2 * Math.PI * 66) - (Math.min(100, targetVariances.forecast.reachedPct) / 100) * (2 * Math.PI * 66)} fill="transparent" strokeLinecap="square" className="transition-all duration-1000 ease-out" />
+                        </svg>
+                        <div className="absolute text-center flex flex-col font-roboto">
+                          <span className="text-base font-bold leading-none" style={{ color: BRAND_COLORS.primary }}>{formatCompactUSD(stats.totalRev)}</span>
+                          <span className="text-[8px] font-khand font-bold opacity-50 uppercase mt-1 tracking-wider">OTB REACH</span>
+                          <span className="text-[10px] font-bold mt-0.5" style={{ color: BRAND_COLORS.purple }}>{targetVariances.forecast.reachedPct.toFixed(1)}%</span>
+                        </div>
+                      </div>
+                      <div className="text-[10px] font-roboto space-y-1 w-full max-w-[130px] border-t pt-2.5" style={{ borderColor: `${BRAND_COLORS.primary}1A` }}>
+                        <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5" style={{ backgroundColor: BRAND_COLORS.purple }} /><span className="font-semibold" style={{ color: `${BRAND_COLORS.primary}CC` }}>OTB (Actuals)</span></div>
+                        <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5" style={{ backgroundColor: BRAND_COLORS.orange }} /><span className="font-semibold truncate" style={{ color: `${BRAND_COLORS.primary}CC` }}>Forecast Target</span></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center border-t pt-6 mt-6" style={{ borderColor: `${BRAND_COLORS.primary}1A` }}>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider font-bold mb-1" style={{ color: `${BRAND_COLORS.primary}80` }}>ADR</p>
+                    <p className="text-2xl md:text-3xl font-khand font-bold leading-none mb-1" style={{ color: BRAND_COLORS.primary }}>{formatPreciseCurrency(planningStats.forecast.adr)}</p>
+                    {renderVarianceTag(targetVariances.forecast.adrDiff, 'precise_currency', 'to PY')}
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider font-bold mb-1" style={{ color: `${BRAND_COLORS.primary}80` }}>REVPAR</p>
+                    <p className="text-2xl md:text-3xl font-khand font-bold leading-none mb-1" style={{ color: BRAND_COLORS.primary }}>{formatPreciseCurrency(planningStats.forecast.revpar)}</p>
+                    {renderVarianceTag(targetVariances.forecast.revparDiff, 'precise_currency', 'to PY')}
+                  </div>
+                </div>
+              </div>
+
             </div>
 
+            {/* Inlined Monthly ADR and Rooms Sold Progression Bar Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <BarChart data={monthlyTotals} xKey="STAY_MONTH" yKey="ADR" label={`Average Daily Rate (ADR) Progression ${selectedSegment !== 'ALL' ? `(${selectedSegment})` : ''}`} format="adr" color={BRAND_COLORS.cyan} />
-              <BarChart data={monthlyTotals} xKey="STAY_MONTH" yKey="NIGHTS" label={`Rooms Sold Progression ${selectedSegment !== 'ALL' ? `(${selectedSegment})` : ''}`} format="number" color={BRAND_COLORS.primary} />
+              {/* ADR Bar Chart */}
+              <div className="bg-[#fafafa] p-6 border-[3px] w-full shadow-sm rounded-none" style={{ borderColor: BRAND_COLORS.primary }}>
+                <h4 className="font-khand uppercase font-bold mb-4 flex items-center gap-2" style={{ color: BRAND_COLORS.primary }}>
+                  <TrendingUp size={16} style={{ color: BRAND_COLORS.cyan }} /> Average Daily Rate (ADR) Progression {selectedSegment !== 'ALL' ? `(${selectedSegment})` : ''}
+                </h4>
+                <svg viewBox="0 0 600 240" className="w-full h-auto overflow-visible select-none">
+                  {[0, 0.25, 0.5, 0.75, 1].map(f => {
+                    const maxVal = Math.max(...monthlyTotals.map(d => d.adr || 0), 1) * 1.15;
+                    const y = 240 - 40 - ((maxVal * f / maxVal) * (240 - 25 - 40));
+                    return (
+                      <g key={f}>
+                        <line x1={65} x2={580} y1={y} y2={y} stroke={BRAND_COLORS.frost} strokeWidth="2" strokeDasharray="3,3" />
+                        <text x={55} y={y + 3} textAnchor="end" fontSize="10" className="font-bold font-roboto" fill={`${BRAND_COLORS.primary}80`}>
+                          {formatCompact(maxVal * f)}
+                        </text>
+                      </g>
+                    );
+                  })}
+                  {monthlyTotals.map((d, i) => {
+                    const maxVal = Math.max(...monthlyTotals.map(item => item.adr || 0), 1) * 1.15;
+                    const x = 65 + (i * (600 - 65 - 20) / Math.max(monthlyTotals.length, 1)) + 5;
+                    const bw = ((600 - 65 - 20) / Math.max(monthlyTotals.length, 1)) * 0.7;
+                    const bh = ((d.adr || 0) / maxVal) * (240 - 25 - 40);
+                    const y = 240 - 40 - bh;
+                    return (
+                      <rect key={i} x={x} y={y} width={bw} height={Math.max(0, bh)} fill={BRAND_COLORS.cyan} className="transition-all duration-700 ease-out rounded-none" />
+                    );
+                  })}
+                  {monthlyTotals.map((d, i) => {
+                    const x = 65 + (i * (600 - 65 - 20) / Math.max(monthlyTotals.length, 1)) + 5;
+                    const bw = ((600 - 65 - 20) / Math.max(monthlyTotals.length, 1)) * 0.7;
+                    return (
+                      <text key={i} x={x + bw / 2} y={216} textAnchor="middle" fontSize="10" className="font-khand font-bold" fill={BRAND_COLORS.primary}>{d.month}</text>
+                    );
+                  })}
+                </svg>
+              </div>
+
+              {/* Rooms Sold Bar Chart */}
+              <div className="bg-[#fafafa] p-6 border-[3px] w-full shadow-sm rounded-none" style={{ borderColor: BRAND_COLORS.primary }}>
+                <h4 className="font-khand uppercase font-bold mb-4 flex items-center gap-2" style={{ color: BRAND_COLORS.primary }}>
+                  <TrendingUp size={16} style={{ color: BRAND_COLORS.cyan }} /> Rooms Sold Progression {selectedSegment !== 'ALL' ? `(${selectedSegment})` : ''}
+                </h4>
+                <svg viewBox="0 0 600 240" className="w-full h-auto overflow-visible select-none">
+                  {[0, 0.25, 0.5, 0.75, 1].map(f => {
+                    const maxVal = Math.max(...monthlyTotals.map(d => d.nights || 0), 1) * 1.15;
+                    const y = 240 - 40 - ((maxVal * f / maxVal) * (240 - 25 - 40));
+                    return (
+                      <g key={f}>
+                        <line x1={65} x2={580} y1={y} y2={y} stroke={BRAND_COLORS.frost} strokeWidth="2" strokeDasharray="3,3" />
+                        <text x={55} y={y + 3} textAnchor="end" fontSize="10" className="font-bold font-roboto" fill={`${BRAND_COLORS.primary}80`}>
+                          {formatNumber(maxVal * f)}
+                        </text>
+                      </g>
+                    );
+                  })}
+                  {monthlyTotals.map((d, i) => {
+                    const maxVal = Math.max(...monthlyTotals.map(item => item.nights || 0), 1) * 1.15;
+                    const x = 65 + (i * (600 - 65 - 20) / Math.max(monthlyTotals.length, 1)) + 5;
+                    const bw = ((600 - 65 - 20) / Math.max(monthlyTotals.length, 1)) * 0.7;
+                    const bh = ((d.nights || 0) / maxVal) * (240 - 25 - 40);
+                    const y = 240 - 40 - bh;
+                    return (
+                      <rect key={i} x={x} y={y} width={bw} height={Math.max(0, bh)} fill={BRAND_COLORS.primary} className="transition-all duration-700 ease-out rounded-none" />
+                    );
+                  })}
+                  {monthlyTotals.map((d, i) => {
+                    const x = 65 + (i * (600 - 65 - 20) / Math.max(monthlyTotals.length, 1)) + 5;
+                    const bw = ((600 - 65 - 20) / Math.max(monthlyTotals.length, 1)) * 0.7;
+                    return (
+                      <text key={i} x={x + bw / 2} y={216} textAnchor="middle" fontSize="10" className="font-khand font-bold" fill={BRAND_COLORS.primary}>{d.month}</text>
+                    );
+                  })}
+                </svg>
+              </div>
             </div>
           </div>
         )}
 
-        {/* SEGMENT ANALYSIS TAB */}
+        {/* SEGMENT ANALYSIS TAB VIEW */}
         {activeTab === 'segments' && (
           <div className="space-y-8 animate-in fade-in duration-500">
              <div className="bg-[#fafafa] border-[3px] p-8 shadow-sm rounded-none" style={{ borderColor: BRAND_COLORS.primary }}>
@@ -810,24 +1497,24 @@ export default function App({ data = [] }) {
                    <tbody>
                      {aggregatedSegments.map((seg, idx) => (
                         <tr key={idx} className="transition-colors hover-bg-dynamic border-b" style={{'--hover-bg-color': `${BRAND_COLORS.primary}0D`, borderColor: `${BRAND_COLORS.primary}1A`}}>
-                          <td className="px-6 py-5 font-bold text-sm" style={{ color: BRAND_COLORS.primary }}>{seg.METRIC}</td>
-                          <td className="px-6 py-5 text-sm font-bold">{formatCurrency(seg.REVENUE)}</td>
+                          <td className="px-6 py-5 font-bold text-sm" style={{ color: BRAND_COLORS.primary }}>{seg.metric}</td>
+                          <td className="px-6 py-5 text-sm font-bold">{formatCurrency(seg.revenue)}</td>
                           <td className="px-6 py-5">
                             <div className="flex items-center gap-3">
                               <div className="w-16 h-2 border border-black/5 overflow-hidden rounded-none" style={{ backgroundColor: BRAND_COLORS.frost }}>
                                 <div 
                                   className="h-full transition-all duration-1000 rounded-none" 
-                                  style={{ width: `${stats.totalRev > 0 ? (seg.REVENUE / stats.totalRev) * 100 : 0}%`, backgroundColor: BRAND_COLORS.cyan }} 
+                                  style={{ width: `${stats.totalRev > 0 ? (seg.revenue / stats.totalRev) * 100 : 0}%`, backgroundColor: BRAND_COLORS.cyan }} 
                                 />
                               </div>
-                              <span className="text-[10px] font-bold" style={{ color: BRAND_COLORS.cyan }}>{stats.totalRev > 0 ? ((seg.REVENUE / stats.totalRev) * 100).toFixed(1) : 0}%</span>
+                              <span className="text-[10px] font-bold" style={{ color: BRAND_COLORS.cyan }}>{stats.totalRev > 0 ? ((seg.revenue / stats.totalRev) * 100).toFixed(1) : 0}%</span>
                             </div>
                           </td>
-                          <td className="px-6 py-5 text-sm" style={{ color: `${BRAND_COLORS.primary}B3` }}>{formatNumber(seg.NIGHTS)}</td>
-                          <td className="px-6 py-5 text-sm font-bold" style={{ color: BRAND_COLORS.cyan }}>{formatPreciseCurrency(seg.ADR)}</td>
+                          <td className="px-6 py-5 text-sm" style={{ color: `${BRAND_COLORS.primary}B3` }}>{formatNumber(seg.nights)}</td>
+                          <td className="px-6 py-5 text-sm font-bold" style={{ color: BRAND_COLORS.cyan }}>{formatPreciseCurrency(seg.adr)}</td>
                           <td className="px-6 py-5 text-sm">
                             <div className="flex items-center gap-1.5 text-xs px-3 py-1 w-fit font-bold uppercase tracking-wider rounded-none" style={{ backgroundColor: BRAND_COLORS.frost, color: `${BRAND_COLORS.primary}99` }}>
-                              <Clock size={12} /> {Math.round(seg.AVG_LEAD)}d
+                              <Clock size={12} /> {Math.round(seg.avgLead)}d
                             </div>
                           </td>
                         </tr>
@@ -842,11 +1529,11 @@ export default function App({ data = [] }) {
           </div>
         )}
 
-        {/* PICKUP & PACE TAB */}
-        {(activeTab === 'pickup & pace' || activeTab === 'pace') && (
+        {/* PICKUP & PACE TAB VIEW */}
+        {activeTab === 'pickup & pace' && (
           <div className="space-y-8 animate-in fade-in duration-500">
             
-            {/* Pace Banner KPIs */}
+            {/* Top Pace KPI Block Row */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 w-full">
               
               <div className="p-5 flex flex-col justify-between h-44 rounded-none shadow-md" style={{ backgroundColor: BRAND_COLORS.primary }}>
@@ -858,7 +1545,7 @@ export default function App({ data = [] }) {
                     {paceTotals.paceVar >= 0 ? `+$${formatCompact(paceTotals.paceVar)}` : `-$${formatCompact(Math.abs(paceTotals.paceVar))}`}
                   </span>
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    <ChangeIndicator isNeg={paceTotals.paceVar < 0} textColor={BRAND_COLORS.powder} bgColor={BRAND_COLORS.primary} />
+                    {renderIndicator(paceTotals.paceVar < 0, BRAND_COLORS.powder, BRAND_COLORS.primary)}
                     <span className="text-sm font-roboto font-medium tracking-normal" style={{ color: BRAND_COLORS.powder }}>
                       {paceTotals.paceVarPct.toFixed(1)}% YOY
                     </span>
@@ -875,7 +1562,7 @@ export default function App({ data = [] }) {
                     {stats.avgADR - stats.stlyADR >= 0 ? `+$${(stats.avgADR - stats.stlyADR).toFixed(2)}` : `-$${Math.abs(stats.avgADR - stats.stlyADR).toFixed(2)}`}
                   </span>
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    <ChangeIndicator isNeg={stats.avgADR - stats.stlyADR < 0} textColor="#FFFFFF" bgColor={BRAND_COLORS.teal} />
+                    {renderIndicator(stats.avgADR - stats.stlyADR < 0, "#FFFFFF", BRAND_COLORS.teal)}
                     <span className="text-sm font-roboto font-medium tracking-normal text-white">
                       {stats.stlyADR > 0 ? `${(((stats.avgADR - stats.stlyADR) / stats.stlyADR) * 100).toFixed(1)}%` : '0.0%'}
                     </span>
@@ -892,7 +1579,7 @@ export default function App({ data = [] }) {
                     ${formatCompact(paceTotals.totalTY || stats.totalRev)}
                   </span>
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    <ChangeIndicator isNeg={paceTotals.paceVar < 0} textColor={BRAND_COLORS.yellow} bgColor={BRAND_COLORS.cyan} />
+                    {renderIndicator(paceTotals.paceVar < 0, BRAND_COLORS.yellow, BRAND_COLORS.cyan)}
                     <span className="text-sm font-roboto font-medium tracking-normal" style={{ color: BRAND_COLORS.yellow }}>
                       (${formatCompact(Math.abs(paceTotals.paceVar))})
                     </span>
@@ -909,7 +1596,7 @@ export default function App({ data = [] }) {
                     {(stats.avgALOS || 0).toFixed(1)}
                   </span>
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    <ChangeIndicator isNeg={stats.avgALOS - 2.5 < 0} textColor={BRAND_COLORS.teal} bgColor={BRAND_COLORS.aqua} />
+                    {renderIndicator(stats.avgALOS - 2.5 < 0, BRAND_COLORS.teal, BRAND_COLORS.aqua)}
                     <span className="text-sm font-roboto font-medium tracking-normal" style={{ color: BRAND_COLORS.teal }}>
                       Nights
                     </span>
@@ -928,14 +1615,72 @@ export default function App({ data = [] }) {
 
             </div>
 
-            {/* Visualizations */}
+            {/* Inlined Pace Comparison SVG Chart and Pickup Velocity SVG Chart Row */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              
+              {/* Pace Bar Comparison Chart */}
               <div className="p-8 border-[3px] rounded-none" style={{ backgroundColor: BRAND_COLORS.white, borderColor: BRAND_COLORS.primary }}>
                 <h3 className="font-khand uppercase font-bold tracking-wider text-xl mb-4" style={{ color: BRAND_COLORS.primary }}>
                   Revenue OTB Pace ({selectedYear || '2026'} vs. {selectedYear ? Number(selectedYear) - 1 : '2025'}) {selectedSegment !== 'ALL' ? `- ${selectedSegment}` : ''}
                 </h3>
                 {filteredPaceRows.length > 0 ? (
-                  <PaceComparisonChart data={filteredPaceRows} />
+                  <div className="w-full overflow-x-auto select-none">
+                    <svg viewBox="0 0 600 280" className="w-full h-auto select-none">
+                      {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+                        const maxVal = Math.max(...filteredPaceRows.map(d => Math.max(d.ty || 0, d.stly || 0)), 100) * 1.15;
+                        const val = maxVal * ratio;
+                        const y = 20 + 220 - (ratio * 220);
+                        return (
+                          <g key={ratio}>
+                            <line x1={60} y1={y} x2={580} y2={y} stroke={BRAND_COLORS.frost} strokeWidth="2" strokeDasharray="3,3" />
+                            <text x={52} y={y + 4} textAnchor="end" className="font-roboto font-bold" fontSize="10" fill={`${BRAND_COLORS.primary}80`}>
+                              {formatCompactUSD(val)}
+                            </text>
+                          </g>
+                        );
+                      })}
+
+                      {filteredPaceRows.map((d, i) => {
+                        const maxVal = Math.max(...filteredPaceRows.map(item => Math.max(item.ty || 0, item.stly || 0)), 100) * 1.15;
+                        const groupWidth = 520 / filteredPaceRows.length;
+                        const barWidth = Math.max(8, groupWidth * 0.35);
+                        const groupX = 60 + (i * groupWidth) + (groupWidth - (barWidth * 2 + 4)) / 2;
+                        
+                        const tyH = (d.ty / maxVal) * 220;
+                        const stlyH = (d.stly / maxVal) * 220;
+
+                        const tyY = 20 + 220 - tyH;
+                        const stlyY = 20 + 220 - stlyH;
+
+                        return (
+                          <g key={d.month || i}>
+                            <rect x={groupX} y={tyY} width={barWidth} height={tyH} fill={BRAND_COLORS.cyan} />
+                            <rect x={groupX + barWidth + 4} y={stlyY} width={barWidth} height={stlyH} fill={BRAND_COLORS.primary} />
+                            <text
+                              x={groupX + barWidth + 2}
+                              y={268}
+                              textAnchor="middle"
+                              className="font-khand font-bold uppercase"
+                              fontSize="11"
+                              fill={BRAND_COLORS.primary}
+                            >
+                              {String(d.month).substring(0, 3).toUpperCase()}
+                            </text>
+                          </g>
+                        );
+                      })}
+                    </svg>
+                    <div className="flex justify-center gap-6 mt-2">
+                      <div className="flex items-center gap-2 text-xs font-khand font-bold uppercase" style={{ color: BRAND_COLORS.primary }}>
+                        <div className="w-3 h-3" style={{ backgroundColor: BRAND_COLORS.cyan }}></div>
+                        <span>TY OTB REVENUE</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs font-khand font-bold uppercase" style={{ color: BRAND_COLORS.primary }}>
+                        <div className="w-3 h-3" style={{ backgroundColor: BRAND_COLORS.primary }}></div>
+                        <span>STLY REVENUE</span>
+                      </div>
+                    </div>
+                  </div>
                 ) : (
                   <div className="text-center py-12 text-sm font-khand uppercase tracking-widest" style={{ color: `${BRAND_COLORS.primary}66` }}>
                     No Pace Data Found For Selection
@@ -943,15 +1688,66 @@ export default function App({ data = [] }) {
                 )}
               </div>
 
+              {/* Pickup Velocity Logistic Curve Chart */}
               <div className="p-8 border-[3px] rounded-none" style={{ backgroundColor: BRAND_COLORS.white, borderColor: BRAND_COLORS.primary }}>
                 <h3 className="font-khand uppercase font-bold tracking-wider text-xl mb-4" style={{ color: BRAND_COLORS.primary }}>
                   Occupancy Booking Window Pickup Velocity
                 </h3>
-                <PickupPatternChart leadDays={stats.totalLead} />
+                <div className="w-full overflow-x-auto select-none">
+                  <svg viewBox="0 0 600 260" className="w-full h-auto select-none">
+                    {[0, 25, 50, 75, 100].map((pct) => {
+                      const y = 20 + 200 - (pct / 100) * 200;
+                      return (
+                        <g key={pct}>
+                          <line x1={50} y1={y} x2={580} y2={y} stroke={BRAND_COLORS.frost} strokeWidth="2" strokeDasharray="3,3" />
+                          <text x={42} y={y + 4} textAnchor="end" className="font-roboto font-bold" fontSize="10" fill={`${BRAND_COLORS.primary}80`}>
+                            {`${pct}%`}
+                          </text>
+                        </g>
+                      );
+                    })}
+
+                    {[90, 60, 30, 0].map((d) => {
+                      const x = 50 + ((90 - d) / 90) * 530;
+                      return (
+                        <text key={d} x={x} y={248} textAnchor="middle" className="font-roboto font-bold" fontSize="10" fill={BRAND_COLORS.primary}>
+                          {`${d}D`}
+                        </text>
+                      );
+                    })}
+
+                    {(() => {
+                      const x0 = stats.totalLead || 15;
+                      const k = 0.08;
+                      const generatePickup = (d) => 100 / (1 + Math.exp(k * (d - x0)));
+
+                      const points = [];
+                      for (let d = 90; d >= 0; d -= 2) {
+                        const pct = generatePickup(d);
+                        const px = 50 + ((90 - d) / 90) * 530;
+                        const py = 20 + 200 - (pct / 100) * 200;
+                        points.push({ x: px, y: py });
+                      }
+
+                      const pathD = points.reduce((acc, p, i) => `${acc} ${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`, '');
+                      const markerX = 50 + ((90 - x0) / 90) * 530;
+                      const markerPct = generatePickup(x0);
+                      const markerY = 20 + 200 - (markerPct / 100) * 200;
+
+                      return (
+                        <>
+                          <path d={pathD} fill="none" stroke={BRAND_COLORS.cyan} strokeWidth="4" />
+                          <circle cx={markerX} cy={markerY} r="6" fill={BRAND_COLORS.yellow} stroke={BRAND_COLORS.primary} strokeWidth="2" />
+                        </>
+                      );
+                    })()}
+                  </svg>
+                </div>
               </div>
+
             </div>
 
-            {/* Breakdown Table */}
+            {/* Inlined Monthly Matrix Breakdown Table */}
             <div className="border-[3px] rounded-none overflow-hidden" style={{ backgroundColor: BRAND_COLORS.white, borderColor: BRAND_COLORS.primary }}>
               <div className="p-6 border-b-[3px] flex justify-between items-center" style={{ backgroundColor: BRAND_COLORS.white, borderColor: BRAND_COLORS.primary }}>
                 <h3 className="font-khand uppercase font-bold tracking-wider text-lg" style={{ color: BRAND_COLORS.primary }}>
@@ -1007,823 +1803,11 @@ export default function App({ data = [] }) {
 
       </main>
 
+      {/* Global Inlined Dashboard Footer */}
       <footer className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 pb-8 flex justify-between items-center text-[9px] font-khand font-bold uppercase tracking-widest" style={{ color: `${BRAND_COLORS.primary}80` }}>
         <span>METRICS BY REVREBEL</span>
         <span>BASED ON SELECTED PERIOD: {periodLabel}</span>
       </footer>
-    </div>
-  );
-}
-
-function DayOfWeekOccupancy({ 
-  selectedYear, 
-  parsedDOW = [], 
-  segmentRows = [],
-  dowSegmentFilter, 
-  setDowSegmentFilter,
-  dowMonthFilter,
-  setDowMonthFilter
-}) {
-  const [hoveredDay, setHoveredDay] = useState(null);
-
-  /* Extract unique segment options dynamically from segment_metric */
-  const dynamicSegments = useMemo(() => {
-    const set = new Set();
-    parsedDOW.forEach(d => {
-      if (d.metric && d.metric.toUpperCase() !== 'TOTAL') set.add(d.metric);
-    });
-    if (set.size === 0) {
-      segmentRows.forEach(s => {
-        if (s.segment && s.segment.toUpperCase() !== 'TOTAL') set.add(s.segment);
-      });
-    }
-    return Array.from(set).sort();
-  }, [parsedDOW, segmentRows]);
-
-  /* Calculate Day of Week averages based on selected segment_metric filter */
-  const computedDOW = useMemo(() => {
-    let activeDowRows = parsedDOW.filter(d => String(d.year) === String(selectedYear));
-    
-    if (dowMonthFilter !== 'YEAR') {
-      activeDowRows = activeDowRows.filter(d => String(d.month).toUpperCase() === String(dowMonthFilter).toUpperCase());
-    }
-    
-    if (dowSegmentFilter === 'TOTAL') {
-      activeDowRows = activeDowRows.filter(d => String(d.metric).toUpperCase() === 'TOTAL');
-    } else if (dowSegmentFilter === 'TRANSIENT') {
-      activeDowRows = activeDowRows.filter(d => String(d.metric).toUpperCase().includes('TRANSIENT'));
-    } else if (dowSegmentFilter === 'GROUP') {
-      activeDowRows = activeDowRows.filter(d => String(d.metric).toUpperCase().includes('GROUP'));
-    } else {
-      const target = String(dowSegmentFilter).toUpperCase();
-      activeDowRows = activeDowRows.filter(d => String(d.metric).toUpperCase() === target || String(d.metric).toUpperCase().includes(target));
-    }
-
-    if (activeDowRows.length > 0) {
-      const days = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
-      const sums = { SUN: 0, MON: 0, TUE: 0, WED: 0, THU: 0, FRI: 0, SAT: 0 };
-      activeDowRows.forEach(row => {
-        days.forEach(day => {
-          sums[day] += row[day];
-        });
-      });
-      const count = activeDowRows.length;
-      return {
-        SUN: Math.round(sums.SUN / count),
-        MON: Math.round(sums.MON / count),
-        TUE: Math.round(sums.TUE / count),
-        WED: Math.round(sums.WED / count),
-        THU: Math.round(sums.THU / count),
-        FRI: Math.round(sums.FRI / count),
-        SAT: Math.round(sums.SAT / count),
-      };
-    }
-
-    /* Fallback estimation if raw DOW dataset rows are not present */
-    const bases = { SUN: 46.5, MON: 44.2, TUE: 52.8, WED: 53.5, THU: 50.4, FRI: 58.2, SAT: 61.8 };
-    let scaleFactor = 1.0;
-    if (["JUN", "JUL", "AUG"].includes(dowMonthFilter)) scaleFactor *= 1.25;
-    if (["JAN", "FEB", "NOV"].includes(dowMonthFilter)) scaleFactor *= 0.85;
-
-    if (dowSegmentFilter === 'GROUP') {
-      return {
-        SUN: Math.min(95, Math.round(28.0 * scaleFactor)),
-        MON: Math.min(95, Math.round(62.5 * scaleFactor)),
-        TUE: Math.min(95, Math.round(71.8 * scaleFactor)),
-        WED: Math.min(95, Math.round(69.0 * scaleFactor)),
-        THU: Math.min(95, Math.round(58.4 * scaleFactor)),
-        FRI: Math.min(95, Math.round(35.2 * scaleFactor)),
-        SAT: Math.min(95, Math.round(24.5 * scaleFactor))
-      };
-    }
-    if (dowSegmentFilter === 'TRANSIENT') {
-      return {
-        SUN: Math.min(95, Math.round(52.0 * scaleFactor)),
-        MON: Math.min(95, Math.round(38.4 * scaleFactor)),
-        TUE: Math.min(95, Math.round(44.2 * scaleFactor)),
-        WED: Math.min(95, Math.round(46.0 * scaleFactor)),
-        THU: Math.min(95, Math.round(52.1 * scaleFactor)),
-        FRI: Math.min(95, Math.round(78.5 * scaleFactor)),
-        SAT: Math.min(95, Math.round(85.0 * scaleFactor))
-      };
-    }
-
-    return {
-      SUN: Math.min(98, Math.round(bases.SUN * scaleFactor)),
-      MON: Math.min(98, Math.round(bases.MON * scaleFactor)),
-      TUE: Math.min(98, Math.round(bases.TUE * scaleFactor)),
-      WED: Math.min(98, Math.round(bases.WED * scaleFactor)),
-      THU: Math.min(98, Math.round(bases.THU * scaleFactor)),
-      FRI: Math.min(98, Math.round(bases.FRI * scaleFactor)),
-      SAT: Math.min(98, Math.round(bases.SAT * scaleFactor))
-    };
-  }, [parsedDOW, dowSegmentFilter, dowMonthFilter, selectedYear]);
-
-  const days = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
-
-  return (
-    <div className="bg-[#fafafa] border-[3px] p-6 flex flex-col h-full relative rounded-none" style={{ borderColor: BRAND_COLORS.primary }}>
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b-[3px] pb-5 mb-6 gap-4" style={{ borderColor: `${BRAND_COLORS.primary}1A` }}>
-        <div>
-          <h3 className="font-khand text-xl font-bold uppercase tracking-wider" style={{ color: BRAND_COLORS.primary }}>
-            DAY OF WEEK OCCUPANCY
-          </h3>
-          <p className="text-xs font-medium tracking-wide uppercase" style={{ color: `${BRAND_COLORS.primary}99` }}>
-            HISTORICAL TREND FOR SELECTED PERIOD
-          </p>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center p-1 border rounded-none text-xs" style={{ backgroundColor: BRAND_COLORS.frost, borderColor: `${BRAND_COLORS.primary}33` }}>
-            <Layers size={12} className="ml-1" style={{ color: BRAND_COLORS.cyan }} />
-            <select
-              value={dowSegmentFilter}
-              onChange={(e) => setDowSegmentFilter(e.target.value)}
-              className="bg-transparent border-none py-0.5 pl-1.5 pr-6 text-[10px] font-bold tracking-wider uppercase cursor-pointer focus:ring-0 rounded-none"
-              style={{ color: BRAND_COLORS.primary }}>
-              <option value="TOTAL">ALL SEGMENTS</option>
-              <option value="TRANSIENT">TRANSIENT</option>
-              <option value="GROUP">GROUP</option>
-              {dynamicSegments.map(seg => (
-                <option key={seg} value={seg}>{seg}</option>
-              ))}
-            </select>
-          </div>
-          <div className="flex items-center p-1 border rounded-none text-xs" style={{ backgroundColor: BRAND_COLORS.frost, borderColor: `${BRAND_COLORS.primary}33` }}>
-            <Calendar size={12} className="ml-1" style={{ color: BRAND_COLORS.cyan }} />
-            <select
-              value={dowMonthFilter}
-              onChange={(e) => setDowMonthFilter(e.target.value)}
-              className="bg-transparent border-none py-0.5 pl-1.5 pr-6 text-[10px] font-khand font-bold tracking-wider uppercase cursor-pointer focus:ring-0 rounded-none"
-              style={{ color: BRAND_COLORS.primary }}>
-              <option value="YEAR">FULL YEAR</option>
-              {MONTH_ORDER.map(m => (
-                <option key={m} value={m}>{m} VIEW</option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-7 gap-3 sm:gap-4 flex-1 items-end pt-12 pb-2">
-        {days.map((day) => {
-          const val = computedDOW[day];
-          const isHovered = hoveredDay === day || (!hoveredDay && day === "THU");
-
-          return (
-            <div 
-              key={day} 
-              className="flex flex-col items-center group cursor-pointer relative h-full justify-end"
-              onMouseEnter={() => setHoveredDay(day)}
-              onMouseLeave={() => setHoveredDay(null)}
-            >
-              <div 
-                className={`absolute -top-7 transition-all duration-300 transform -translate-y-2 text-white text-[10px] sm:text-xs font-bold px-2 py-1 rounded-none shadow-md pointer-events-none z-10 ${
-                  isHovered ? 'opacity-100 scale-100' : 'opacity-0 scale-90'
-                }`} style={{ backgroundColor: BRAND_COLORS.primary }}
-              >
-                {val}%
-                <div className="absolute left-1/2 -bottom-1 transform -translate-x-1/2 w-2 h-2 rotate-45" style={{ backgroundColor: BRAND_COLORS.primary }}></div>
-              </div>
-
-              <div className="w-full border-2 rounded-none aspect-[1/3.5] flex flex-col justify-end p-0.5 overflow-hidden" style={{ backgroundColor: BRAND_COLORS.frost, borderColor: `${BRAND_COLORS.primary}1A` }}>
-                <div 
-                  className="w-full rounded-none transition-all duration-500 ease-out"
-                  style={{ height: `${val}%`, backgroundColor: BRAND_COLORS.cyan }}
-                />
-              </div>
-
-              <span className="text-[10px] sm:text-xs font-khand font-bold uppercase tracking-wider group-hover-text-dynamic mt-3" style={{ color: `${BRAND_COLORS.primary}99`, '--group-hover-color': BRAND_COLORS.primary }}>
-                {day}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function SegmentPaceChart({ segmentRows = [], paceRows = [], selectedYear, activeMonthsList = [], periodLabel }) {
-  const displaySegments = useMemo(() => {
-    // Collect all unique segments directly from segment_metric
-    const segSet = new Set();
-    segmentRows.forEach(r => {
-      const seg = r.segment || r.METRIC;
-      if (seg && seg.toUpperCase() !== 'TOTAL' && seg.toUpperCase() !== 'COMPLIMENTARY') {
-        segSet.add(seg);
-      }
-    });
-
-    paceRows.forEach(r => {
-      if (r.metric && r.metric.toUpperCase() !== 'TOTAL') {
-        segSet.add(r.metric);
-      }
-    });
-
-    const segments = Array.from(segSet);
-    const prevYear = Number(selectedYear) - 1;
-
-    const segmentMap = {};
-    segments.forEach(seg => {
-      segmentMap[seg] = { name: seg, actual: 0, stly: 0 };
-    });
-
-    // Compute pace for active months using paceRows if available, or fall back to segmentRows
-    const filteredPace = paceRows.filter(r => 
-      activeMonthsList.includes(r.month) && 
-      r.metric && 
-      r.metric.toUpperCase() !== 'TOTAL'
-    );
-
-    if (filteredPace.length > 0) {
-      filteredPace.forEach(r => {
-        const seg = r.metric;
-        if (!segmentMap[seg]) segmentMap[seg] = { name: seg, actual: 0, stly: 0 };
-        segmentMap[seg].actual += (r.ty || 0);
-        segmentMap[seg].stly += (r.stly || 0);
-      });
-    } else {
-      segmentRows.forEach(r => {
-        const m = r.month || r.STAY_MONTH;
-        const yr = Number(r.year || r.YEAR);
-        const seg = r.segment || r.METRIC;
-
-        if (seg && seg.toUpperCase() !== 'TOTAL' && seg.toUpperCase() !== 'COMPLIMENTARY' && activeMonthsList.includes(m)) {
-          if (!segmentMap[seg]) segmentMap[seg] = { name: seg, actual: 0, stly: 0 };
-          if (yr === Number(selectedYear)) {
-            segmentMap[seg].actual += (r.revenue || r.REVENUE || 0);
-          } else if (yr === prevYear) {
-            segmentMap[seg].stly += (r.revenue || r.REVENUE || 0);
-          }
-        }
-      });
-    }
-
-    return Object.values(segmentMap)
-      .map(s => {
-        const variancePct = s.stly > 0 ? ((s.actual - s.stly) / s.stly) * 100 : 0;
-        return {
-          name: s.name,
-          actual: s.actual,
-          variance: variancePct
-        };
-      })
-      .filter(s => s.actual > 0 || s.stly > 0)
-      .sort((a, b) => b.actual - a.actual);
-  }, [segmentRows, paceRows, selectedYear, activeMonthsList]);
-
-  return (
-    <div className="bg-[#fafafa] border-[3px] p-6 flex flex-col h-full justify-between rounded-none" style={{ borderColor: BRAND_COLORS.primary }}>
-      <div>
-        <div className="flex justify-between items-start border-b-[3px] pb-5 mb-6" style={{ borderColor: `${BRAND_COLORS.primary}1A` }}>
-          <div>
-            <h3 className="font-khand text-xl font-bold uppercase tracking-wider" style={{ color: BRAND_COLORS.primary }}>
-              PACE VS STLY
-            </h3>
-            <p className="text-xs font-medium tracking-wide uppercase" style={{ color: `${BRAND_COLORS.primary}99` }}>
-              HISTORICAL REVENUE COMPARISON
-            </p>
-          </div>
-          <TrendingUp className="w-5 h-5 mt-1" style={{ color: BRAND_COLORS.cyan }} />
-        </div>
-        
-        <div className="space-y-4">
-          {displaySegments.map((seg, idx) => {
-            const isNegative = seg.variance < 0;
-
-            return (
-              <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div className="w-full sm:w-1/3">
-                  <span className="font-khand font-bold text-xs uppercase tracking-wider truncate block" style={{ color: BRAND_COLORS.primary }}>
-                    {seg.name}
-                  </span>
-                </div>
-
-                <div className="flex-1 flex items-center justify-between p-2 rounded-none border transition-colors" style={{ borderColor: `${BRAND_COLORS.primary}33`, backgroundColor: BRAND_COLORS.frost }}>
-                  <span className="font-bold text-xs" style={{ color: BRAND_COLORS.primary }}>
-                    {formatCurrency(seg.actual)}
-                  </span>
-                  
-                  <span className="inline-flex px-2 py-0.5 text-[10px] font-bold rounded-none" style={{ backgroundColor: isNegative ? `${BRAND_COLORS.red}1A` : `${BRAND_COLORS.cyan}1A`, color: isNegative ? BRAND_COLORS.red : BRAND_COLORS.teal }}>
-                    {seg.variance >= 0 ? '+' : ''}{seg.variance.toFixed(1)}%
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-          {displaySegments.length === 0 && (
-            <p className="text-center py-8 text-xs font-khand font-bold uppercase tracking-wider opacity-60" style={{ color: BRAND_COLORS.primary }}>
-              No Segment Pacing Data Available
-            </p>
-          )}
-        </div>
-      </div>
-
-      <div className="border-t-[3px] pt-4 mt-6 flex justify-between items-center text-[10px] font-bold uppercase tracking-widest" style={{ borderColor: `${BRAND_COLORS.primary}1A`, color: `${BRAND_COLORS.primary}66` }}>
-        <span>STLY COMPARISON</span>
-        <span>{periodLabel}</span>
-      </div>
-    </div>
-  );
-}
-
-function PaceComparisonChart({ data }) {
-  if (!data || !data.length) return null;
-
-  const width = 600;
-  const height = 280;
-  const paddingLeft = 60;
-  const paddingBottom = 40;
-  const paddingTop = 20;
-  const paddingRight = 20;
-
-  const chartW = width - paddingLeft - paddingRight;
-  const chartH = height - paddingTop - paddingBottom;
-
-  const maxVal = Math.max(...data.map(d => Math.max(d.ty || 0, d.stly || 0)), 100) * 1.15;
-
-  const groupWidth = chartW / data.length;
-  const barWidth = Math.max(8, (groupWidth * 0.35));
-
-  return (
-    <div className="w-full overflow-x-auto select-none">
-      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto select-none">
-        {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
-          const val = maxVal * ratio;
-          const y = paddingTop + chartH - (ratio * chartH);
-          return (
-            <g key={ratio}>
-              <line x1={paddingLeft} y1={y} x2={width - paddingRight} y2={y} stroke={BRAND_COLORS.frost} strokeWidth="2" strokeDasharray="3,3" />
-              <text x={paddingLeft - 8} y={y + 4} textAnchor="end" className="font-roboto font-bold" fontSize="10" fill={`${BRAND_COLORS.primary}80`}>
-                {formatCompactUSD(val)}
-              </text>
-            </g>
-          );
-        })}
-
-        {data.map((d, i) => {
-          const groupX = paddingLeft + (i * groupWidth) + (groupWidth - (barWidth * 2 + 4)) / 2;
-          const tyH = (d.ty / maxVal) * chartH;
-          const stlyH = (d.stly / maxVal) * chartH;
-
-          const tyY = paddingTop + chartH - tyH;
-          const stlyY = paddingTop + chartH - stlyH;
-
-          return (
-            <g key={d.month || i}>
-              <rect x={groupX} y={tyY} width={barWidth} height={tyH} fill={BRAND_COLORS.cyan} />
-              <rect x={groupX + barWidth + 4} y={stlyY} width={barWidth} height={stlyH} fill={BRAND_COLORS.primary} />
-              <text
-                x={groupX + barWidth + 2}
-                y={height - 12}
-                textAnchor="middle"
-                className="font-khand font-bold uppercase"
-                fontSize="11"
-                fill={BRAND_COLORS.primary}
-              >
-                {String(d.month).substring(0, 3).toUpperCase()}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
-      <div className="flex justify-center gap-6 mt-2">
-        <div className="flex items-center gap-2 text-xs font-khand font-bold uppercase" style={{ color: BRAND_COLORS.primary }}>
-          <div className="w-3 h-3" style={{ backgroundColor: BRAND_COLORS.cyan }}></div>
-          <span>TY OTB REVENUE</span>
-        </div>
-        <div className="flex items-center gap-2 text-xs font-khand font-bold uppercase" style={{ color: BRAND_COLORS.primary }}>
-          <div className="w-3 h-3" style={{ backgroundColor: BRAND_COLORS.primary }}></div>
-          <span>STLY REVENUE</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PickupPatternChart({ leadDays }) {
-  const width = 600;
-  const height = 260;
-  const paddingLeft = 50;
-  const paddingBottom = 40;
-  const paddingTop = 20;
-  const paddingRight = 20;
-
-  const chartW = width - paddingLeft - paddingRight;
-  const chartH = height - paddingTop - paddingBottom;
-
-  const x0 = leadDays || 15;
-  const k = 0.08;
-  const generatePickup = (d) => 100 / (1 + Math.exp(k * (d - x0)));
-
-  const points = [];
-  for (let d = 90; d >= 0; d -= 2) {
-    const pct = generatePickup(d);
-    const px = paddingLeft + ((90 - d) / 90) * chartW;
-    const py = paddingTop + chartH - (pct / 100) * chartH;
-    points.push({ x: px, y: py, d, pct });
-  }
-
-  const pathD = points.reduce((acc, p, i) => `${acc} ${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`, '');
-
-  const markerX = paddingLeft + ((90 - x0) / 90) * chartW;
-  const markerPct = generatePickup(x0);
-  const markerY = paddingTop + chartH - (markerPct / 100) * chartH;
-
-  return (
-    <div className="w-full overflow-x-auto select-none">
-      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto select-none">
-        {[0, 25, 50, 75, 100].map((pct) => {
-          const y = paddingTop + chartH - (pct / 100) * chartH;
-          return (
-            <g key={pct}>
-              <line x1={paddingLeft} y1={y} x2={width - paddingRight} y2={y} stroke={BRAND_COLORS.frost} strokeWidth="2" strokeDasharray="3,3" />
-              <text x={paddingLeft - 8} y={y + 4} textAnchor="end" className="font-roboto font-bold" fontSize="10" fill={`${BRAND_COLORS.primary}80`}>
-                {`${pct}%`}
-              </text>
-            </g>
-          );
-        })}
-
-        {[90, 60, 30, 0].map((d) => {
-          const x = paddingLeft + ((90 - d) / 90) * chartW;
-          return (
-            <text key={d} x={x} y={height - 12} textAnchor="middle" className="font-roboto font-bold" fontSize="10" fill={BRAND_COLORS.primary}>
-              {`${d}D`}
-            </text>
-          );
-        })}
-
-        <path d={pathD} fill="none" stroke={BRAND_COLORS.cyan} strokeWidth="4" />
-        <circle cx={markerX} cy={markerY} r="6" fill={BRAND_COLORS.yellow} stroke={BRAND_COLORS.primary} strokeWidth="2" />
-      </svg>
-    </div>
-  );
-}
-
-function ChangeIndicator({ isNeg, textColor, bgColor }) {
-  return (
-    <div 
-      className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 shadow-sm"
-      style={{ backgroundColor: textColor }}
-    >
-      <svg 
-        viewBox="0 0 24 24" 
-        className="w-5 h-5 transition-transform duration-300"
-        style={{ transform: isNeg ? 'rotate(180deg)' : 'rotate(0deg)' }}
-      >
-        <path 
-          d="M 12 3 L 5 11 H 8.5 V 21 H 15.5 V 11 H 19 Z" 
-          fill={bgColor} 
-        />
-      </svg>
-    </div>
-  );
-}
-
-function KPICard({ label, value, diff, isNeg, bgColor, textColor, labelColor }) {
-  return (
-    <div 
-      className="p-5 flex flex-col justify-between h-44 shadow-md transition-transform hover:scale-[1.02] rounded-none border border-black/5"
-      style={{ backgroundColor: bgColor }}
-    >
-      <span className="text-lg font-khand font-bold uppercase tracking-wider" style={{ color: labelColor }}>
-        {label}
-      </span>
-      <div className="flex flex-col gap-0.5 -mt-4">
-        <span className="text-4xl md:text-5xl font-khand font-bold uppercase tracking-normal leading-none" style={{ color: textColor }}>
-          {value}
-        </span>
-        <div className="flex items-center gap-1.5 mt-0.5">
-          <ChangeIndicator isNeg={isNeg} textColor={textColor} bgColor={bgColor} />
-          <span className="text-sm font-roboto font-medium tracking-normal" style={{ color: textColor }}>
-            {diff}
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function MetricBrief({ label, value, variance }) {
-  return (
-    <div className="animate-in fade-in duration-500">
-      <p className="text-[10px] uppercase tracking-wider font-bold mb-1" style={{ color: `${BRAND_COLORS.primary}80` }}>{label}</p>
-      <p className="text-2xl md:text-3xl font-khand font-bold leading-none mb-1" style={{ color: BRAND_COLORS.primary}}>{value}</p>
-      <div className="leading-none">{variance}</div>
-    </div>
-  );
-}
-
-function PacingCard({ title, actual, target, variances }) {
-  return (
-    <div className="bg-[#fafafa] p-8 flex flex-col justify-between transition-colors duration-200 rounded-none" style={{ color: BRAND_COLORS.primary }}>
-      <div className="grid grid-cols-1 sm:grid-cols-12 gap-6">
-        <div className="sm:col-span-7 flex flex-col justify-between space-y-6">
-          <div className="flex gap-10">
-            <MetricBrief label="OCCP" value={`${(target.occupancy * 100).toFixed(1)}%`} variance={renderVariance(variances.occupancyDiff, 'percent', 'to PY')} />
-            <MetricBrief label="ROOMS" value={formatNumber(target.rooms)} variance={renderVariance(variances.roomsDiff, 'number', 'to PY')} />
-          </div>
-          <div>
-            <h3 className="text-5xl font-khand font-bold uppercase tracking-tight leading-none mb-1" style={{ color: BRAND_COLORS.primary }}>{title}</h3>
-            <p className="text-3xl font-roboto font-bold tracking-tight leading-none mb-2" style={{ color: `${BRAND_COLORS.primary}E6` }}>{formatCurrency(target.revenue)}</p>
-            {renderVariance(variances.revenueDiff, 'currency', 'to PY')}
-          </div>
-          <TickPacingBar pct={variances.reachedPct} />
-        </div>
-        <div className="sm:col-span-5 flex flex-col items-center justify-center">
-          <DonutChart achieved={actual} target={target.revenue} fillColor={BRAND_COLORS.purple} trackColor={BRAND_COLORS.orange} targetLabel={`${title} Target`}/>
-        </div>
-      </div>
-      <div className="flex justify-between items-center border-t pt-6 mt-6" style={{ borderColor: `${BRAND_COLORS.primary}1A` }}>
-        <MetricBrief label="ADR" value={formatPreciseCurrency(target.adr)} variance={renderVariance(variances.adrDiff, 'precise_currency', 'to PY')} />
-        <MetricBrief label="REVPAR" value={formatPreciseCurrency(target.revpar)} variance={renderVariance(variances.revparDiff, 'precise_currency', 'to PY')} />
-      </div>
-    </div>
-  );
-}
-
-const renderVariance = (val, type, label = "var STLY") => {
-  const isNegative = val < 0;
-  const color = isNegative ? BRAND_COLORS.red : BRAND_COLORS.cyan;
-  let formattedVal = "";
-  if (type === 'percent') formattedVal = `${!isNegative ? "+" : ""}${val.toFixed(2)}%`;
-  else if (type === 'number') formattedVal = `${!isNegative ? "+" : ""}${formatNumber(val)}`;
-  else if (type === 'currency') formattedVal = `${!isNegative ? "+$" : "-$"}${formatNumber(Math.abs(val))}`;
-  else if (type === 'precise_currency') formattedVal = `${!isNegative ? "+$" : "-$"}${Math.abs(val).toFixed(2)}`;
-
-  return (
-    <span className="inline-flex items-center gap-1 font-bold text-[11px] font-roboto" style={{ color: color }}>
-      <span>{isNegative ? "▼" : "▲"}</span>
-      <span>{formattedVal}</span>
-      <span className="font-medium ml-0.5" style={{ color: `${BRAND_COLORS.primary}66` }}>{label}</span>
-    </span>
-  );
-};
-
-function BarChart({ data, xKey, yKey, label, format, color }) {
-  const width = 600;
-  const height = 240;
-  const margin = { top: 25, right: 20, bottom: 40, left: 65 };
-  const maxVal = Math.max(...data.map(d => d[yKey] || 0), 1) * 1.15;
-
-  const getX = (i) => margin.left + (i * (width - margin.left - margin.right) / Math.max(data.length, 1)) + 5;
-  const getBarWidth = () => ((width - margin.left - margin.right) / Math.max(data.length, 1)) * 0.7;
-  const getY = (v) => height - margin.bottom - ((v / maxVal) * (height - margin.top - margin.bottom));
-  const getBarHeight = (v) => (v / maxVal) * (height - margin.top - margin.bottom);
-
-  return (
-    <div className="bg-[#fafafa] p-6 border-[3px] w-full shadow-sm rounded-none" style={{ borderColor: BRAND_COLORS.primary }}>
-      <h4 className="font-khand uppercase font-bold mb-4 flex items-center gap-2" style={{ color: BRAND_COLORS.primary }}><TrendingUp size={16} style={{ color: BRAND_COLORS.cyan }} /> {label}</h4>
-      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto overflow-visible select-none">
-        {[0, 0.25, 0.5, 0.75, 1].map(f => {
-          const y = getY(maxVal * f);
-          return (
-            <g key={f}>
-              <line x1={margin.left} x2={width - margin.right} y1={y} y2={y} stroke={BRAND_COLORS.frost} strokeWidth="2" strokeDasharray="3,3" />
-              <text x={margin.left - 10} y={y + 3} textAnchor="end" fontSize="10" className="font-bold font-roboto" fill={`${BRAND_COLORS.primary}80`}>
-                {format === 'adr' ? formatCompact(maxVal * f) : formatNumber(maxVal * f)}
-              </text>
-            </g>
-          );
-        })}
-        {data.map((d, i) => (
-          <rect key={i} x={getX(i)} y={getY(d[yKey])} width={getBarWidth()} height={Math.max(0, getBarHeight(d[yKey]))} fill={color} className="transition-all duration-700 ease-out rounded-none" />
-        ))}
-        {data.map((d, i) => (
-          <text key={i} x={getX(i) + getBarWidth()/2} y={height - margin.bottom + 16} textAnchor="middle" fontSize="10" className="font-khand font-bold" fill={BRAND_COLORS.primary}>{d[xKey]}</text>
-        ))}
-      </svg>
-    </div>
-  );
-}
-
-function DonutChart({ achieved, target, fillColor, trackColor, targetLabel }) {
-  const size = 150;
-  const strokeWidth = 18;
-  const radius = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const percent = target > 0 ? Math.min(100, (achieved / target) * 100) : 0;
-  const offset = circumference - (percent / 100) * circumference;
-
-  return (
-    <div className="flex flex-col items-center justify-center space-y-4">
-      <div className="relative w-[150px] h-[150px] flex items-center justify-center">
-        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="transform -rotate-90">
-          <circle cx={size / 2} cy={size / 2} r={radius} stroke={trackColor} strokeWidth={strokeWidth} fill="transparent" />
-          <circle cx={size / 2} cy={size / 2} r={radius} stroke={fillColor} strokeWidth={strokeWidth} strokeDasharray={circumference} strokeDashoffset={offset} fill="transparent" strokeLinecap="square" className="transition-all duration-1000 ease-out" />
-        </svg>
-        <div className="absolute text-center flex flex-col font-roboto">
-          <span className="text-base font-bold leading-none" style={{ color: BRAND_COLORS.primary }}>{formatCompactUSD(achieved)}</span>
-          <span className="text-[8px] font-khand font-bold opacity-50 uppercase mt-1 tracking-wider">OTB REACH</span>
-          <span className="text-[10px] font-bold mt-0.5" style={{ color: BRAND_COLORS.purple }}>{percent.toFixed(1)}%</span>
-        </div>
-      </div>
-      <div className="text-[10px] font-roboto space-y-1 w-full max-w-[130px] border-t pt-2.5" style={{ borderColor: `${BRAND_COLORS.primary}1A` }}>
-        <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5" style={{ backgroundColor: fillColor }} /><span className="font-semibold" style={{ color: `${BRAND_COLORS.primary}CC` }}>OTB (Actuals)</span></div>
-        <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5" style={{ backgroundColor: trackColor }} /><span className="font-semibold truncate" style={{ color: `${BRAND_COLORS.primary}CC` }}>{targetLabel}</span></div>
-      </div>
-    </div>
-  );
-}
-
-function TickPacingBar({ pct }) {
-  const totalTicks = 34;
-  const activeTicks = Math.round((Math.min(100, Math.max(0, pct)) / 100) * totalTicks);
-  return (
-    <div className="flex flex-col space-y-1">
-       <div className="flex items-end gap-[3px] h-[26px]">
-        {Array.from({ length: totalTicks }).map((_, i) => (
-          <div key={i} className={`w-[4px] transition-all duration-500 ease-out ${i === totalTicks - 1 ? 'h-6' : (i % 4 === 0 ? 'h-4' : 'h-3')}`} style={{ backgroundColor: i <= activeTicks ? BRAND_COLORS.primary : BRAND_COLORS.frost, border: i === totalTicks - 1 ? `1px solid ${BRAND_COLORS.primary}` : 'none' }} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function GuestBehaviorProfiles({ segmentRows = [], selectedYear, activeMonthsList = [], periodLabel }) {
-  const [selectedBehaviorSegment, setSelectedBehaviorSegment] = useState('ALL');
-
-  const behaviorSegmentOptions = useMemo(() => {
-    const set = new Set(
-      segmentRows
-        .map(r => r.segment || r.METRIC)
-        .filter(m => m && m.toUpperCase() !== 'TOTAL' && m.toUpperCase() !== 'COMPLIMENTARY')
-    );
-    return Array.from(set).sort();
-  }, [segmentRows]);
-
-  const activeSet = useMemo(() => {
-    let list = segmentRows.filter(r => 
-      String(r.year || r.YEAR) === String(selectedYear) && 
-      activeMonthsList.includes(r.month || r.STAY_MONTH)
-    );
-    if (selectedBehaviorSegment !== 'ALL') {
-      const target = selectedBehaviorSegment.toUpperCase();
-      list = list.filter(r => (r.segment || r.METRIC).toUpperCase() === target);
-    }
-    return list;
-  }, [segmentRows, selectedYear, activeMonthsList, selectedBehaviorSegment]);
-
-  const { calcALOS, calcLead } = useMemo(() => {
-    const totalNights = activeSet.reduce((acc, d) => acc + (d.nights || d.NIGHTS || 0), 0);
-    const totalResn = activeSet.reduce((acc, d) => acc + (d.resn || d.NO_RESN || 0), 0);
-    
-    const alosVal = totalResn > 0 ? (totalNights / totalResn) : (activeSet.length > 0 ? activeSet.reduce((acc, d) => acc + (d.alos || d.ALOS || 0), 0) / activeSet.length : 2.5);
-    const leadVal = activeSet.length > 0 ? activeSet.reduce((acc, d) => acc + (d.lead || d.LEAD_DAYS || 0), 0) / activeSet.length : 16;
-    
-    return { calcALOS: alosVal, calcLead: leadVal };
-  }, [activeSet]);
-
-  const losData = useMemo(() => {
-    const baseValues = [28, 22, 21, 12, 7, 4, 6];
-    const factor = (calcALOS || 2.5) / 2.5;
-    
-    let scaled = baseValues.map((val, idx) => {
-      if (idx < 2) return Math.round(val / factor);
-      return Math.round(val * factor);
-    });
-    
-    const sum = scaled.reduce((a, b) => a + b, 0);
-    if (sum > 0) {
-      scaled = scaled.map(val => Math.round((val / sum) * 100));
-    }
-    
-    const finalSum = scaled.reduce((a, b) => a + b, 0);
-    if (finalSum !== 100) {
-      const diff = 100 - finalSum;
-      scaled[0] = Math.max(0, scaled[0] + diff);
-    }
-
-    const losStyles = [
-      { key: "1 NIGHT", style: { backgroundColor: BRAND_COLORS.primary, color: '#b9c3d1' } },
-      { key: "2 NIGHTS", style: { backgroundColor: BRAND_COLORS.teal, color: '#b4d8e0' } },
-      { key: "3 NIGHTS", style: { backgroundColor: BRAND_COLORS.cyan, color: '#b3e4e9' } },
-      { key: "4 NIGHTS", style: { backgroundColor: BRAND_COLORS.aqua, color: BRAND_COLORS.primary } },
-      { key: "5 NIGHTS", style: { backgroundColor: BRAND_COLORS.powder, color: BRAND_COLORS.teal } },
-      { key: "6 NIGHTS", style: { backgroundColor: BRAND_COLORS.frost, border: `2px solid ${BRAND_COLORS.cyan}`, color: BRAND_COLORS.cyan } },
-      { key: "7+ NIGHTS", style: { backgroundColor: BRAND_COLORS.white, border: `2px solid ${BRAND_COLORS.aqua}`, color: BRAND_COLORS.aqua } }
-    ];
-
-    return losStyles.map((item, i) => ({
-      ...item,
-      pct: scaled[i]
-    }));
-  }, [calcALOS]);
-
-  const leadData = useMemo(() => {
-    const baseValues = [18, 5, 9, 34, 23, 15, 1];
-    const factor = (calcLead || 16) / 16;
-    
-    let scaled = baseValues.map((val, idx) => {
-      if (idx < 3) return Math.round(val / factor);
-      return Math.round(val * factor);
-    });
-    
-    const sum = scaled.reduce((a, b) => a + b, 0);
-    if (sum > 0) {
-      scaled = scaled.map(val => Math.round((val / sum) * 100));
-    }
-    
-    const finalSum = scaled.reduce((a, b) => a + b, 0);
-    if (finalSum !== 100) {
-      const diff = 100 - finalSum;
-      scaled[0] = Math.max(0, scaled[0] + diff);
-    }
-
-    const leadStyles = [
-      { key: "0-3 DAYS", style: { backgroundColor: BRAND_COLORS.yellow, color: '#feefd7' }, labelStyle: { color: BRAND_COLORS.yellow } },
-      { key: "4-6 DAYS", style: { backgroundColor: '#ff914d', color: '#ffdeca' }, labelStyle: { color: '#ff914d' } },
-      { key: "7-14 DAYS", style: { backgroundColor: BRAND_COLORS.orange, color: '#fbd8cd' }, labelStyle: { color: BRAND_COLORS.orange } },
-      { key: "15-29 DAYS", style: { backgroundColor: BRAND_COLORS.red, color: BRAND_COLORS.yellow }, labelStyle: { color: BRAND_COLORS.red } },
-      { key: "30-45 DAYS", style: { backgroundColor: '#cf3b4b', color: '#ff914d' }, labelStyle: { color: '#cf3b4b' } },
-      { key: "61-90 DAYS", style: { backgroundColor: '#b4126d', color: BRAND_COLORS.orange }, labelStyle: { color: '#b4126d' } },
-      { key: "91+ DAYS", style: { backgroundColor: BRAND_COLORS.purple, color: BRAND_COLORS.red }, labelStyle: { color: BRAND_COLORS.purple } }
-    ];
-
-    return leadStyles.map((item, i) => ({
-      ...item,
-      pct: scaled[i]
-    }));
-  }, [calcLead]);
-
-  return (
-    <div className="bg-[#fafafa] border-[3px] p-8 md:p-10 w-full space-y-10 shadow-sm rounded-none" style={{ borderColor: BRAND_COLORS.primary }}>
-      
-      {/* Behavior Panel Header and Filter */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-6 border-b-[3px] gap-4" style={{ borderColor: `${BRAND_COLORS.primary}1A` }}>
-        <div>
-          <h3 className="font-khand text-2xl font-bold uppercase tracking-wider" style={{ color: BRAND_COLORS.primary }}>
-            GUEST BEHAVIOR PROFILES
-          </h3>
-          <p className="text-xs font-medium tracking-wide uppercase" style={{ color: `${BRAND_COLORS.primary}99` }}>
-            LENGTH OF STAY AND BOOKING WINDOW DISTRIBUTIONS
-          </p>
-        </div>
-        
-        {/* Behavior Segment Filter */}
-        <div className="flex items-center p-1.5 border rounded-none text-xs" style={{ backgroundColor: BRAND_COLORS.frost, borderColor: `${BRAND_COLORS.primary}33` }}>
-          <Layers size={14} className="ml-1" style={{ color: BRAND_COLORS.cyan }} />
-          <select
-            value={selectedBehaviorSegment}
-            onChange={(e) => setSelectedBehaviorSegment(e.target.value)}
-            className="bg-transparent border-none py-0.5 pl-2 pr-8 text-xs font-khand font-bold tracking-wider uppercase cursor-pointer focus:ring-0 rounded-none"
-            style={{ color: BRAND_COLORS.primary }}>
-            <option value="ALL">ALL SEGMENTS</option>
-            {behaviorSegmentOptions.map(seg => (
-              <option key={seg} value={seg}>{seg}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      {/* LOS Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-        <div className="lg:col-span-3">
-          <h4 className="font-khand uppercase font-bold text-xl tracking-wider leading-none" style={{ color: BRAND_COLORS.primary }}>
-            LENGTH OF STAY
-          </h4>
-        </div>
-        <div className="lg:col-span-9 grid grid-cols-3 sm:grid-cols-7 gap-2.5">
-          {losData.map((item, idx) => (
-            <div key={idx} className="flex flex-col space-y-2">
-              <div className="aspect-square flex items-center justify-center font-khand font-bold text-3xl md:text-4xl shadow-sm rounded-none" style={item.style}>
-                {String(item.pct).padStart(2, '0')}%
-              </div>
-              <span className="text-[10px] font-khand uppercase font-bold text-center tracking-wider block" style={{ color: `${BRAND_COLORS.primary}99` }}>
-                {item.key}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Lead Window Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center pt-8 border-t" style={{ borderColor: `${BRAND_COLORS.primary}1A` }}>
-        <div className="lg:col-span-3">
-          <h4 className="font-khand uppercase font-bold text-xl tracking-wider leading-none" style={{ color: BRAND_COLORS.primary }}>
-            LEAD DAYS
-          </h4>
-        </div>
-        <div className="lg:col-span-9 grid grid-cols-3 sm:grid-cols-7 gap-2.5">
-          {leadData.map((item, idx) => (
-            <div key={idx} className="flex flex-col space-y-2">
-              <div className="aspect-square flex items-center justify-center font-khand font-bold text-3xl md:text-4xl shadow-sm rounded-none" style={item.style}>
-                {String(item.pct).padStart(2, '0')}%
-              </div>
-              <span className="text-[10px] font-khand font-bold uppercase text-center tracking-wider block leading-none" style={item.labelStyle}>
-                {item.key}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-      
-      {/* Panel Footer */}
-      <div className="flex justify-between items-center border-t pt-4 text-[9px] font-khand font-bold uppercase tracking-widest" style={{ borderColor: BRAND_COLORS.primary, color: `${BRAND_COLORS.primary}80` }}>
-        <span>METRICS BY REVREBEL</span>
-        <span>BASED ON SELECTED PERIOD: {periodLabel}</span>
-      </div>
     </div>
   );
 }
