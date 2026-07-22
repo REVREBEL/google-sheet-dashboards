@@ -363,6 +363,9 @@ export default function App({ data = [] }) {
 
     if (!data || !data.length) return result;
 
+    // Row 1 (idx 0): Clean converted unique identifier headers
+    // Row 2 (idx 1): Original raw BigQuery header row (EXPLICITLY BYPASSED)
+    // Row 3+ (idx >= 2): Primary data payload rows
     const headers = data[0]?.row || [];
     const findCol = (str) => headers.findIndex(h => safeString(h).toLowerCase() === str.toLowerCase());
     const findColMulti = (candidates) => {
@@ -424,17 +427,18 @@ export default function App({ data = [] }) {
     };
     result.headerMap = map;
 
-    if (data[1]) {
-      if (map.property !== -1) result.propertyName = safeString(data[1].row[map.property]) || result.propertyName;
-      if (map.rooms !== -1) result.roomsConfig = Number(data[1].row[map.rooms]) || result.roomsConfig;
+    if (data[2]) {
+      if (map.property !== -1) result.propertyName = safeString(data[2].row[map.property]) || result.propertyName;
+      if (map.rooms !== -1) result.roomsConfig = Number(data[2].row[map.rooms]) || result.roomsConfig;
     }
 
     data.forEach((item, idx) => {
-      if (idx < 2) return;
+      // Explicitly bypass Row 1 (headers) and Row 2 (raw BigQuery export headers)
+      if (idx <= 1) return;
       const r = item.row;
       if (!r) return;
 
-      // Channel Rows Parsing with Type Casting
+      // Channel Rows Parsing with Type Casting (Strict CamelCase Schema)
       if (map.channelYear !== -1 && r[map.channelYear]) {
         const yr = Number(r[map.channelYear]);
         if (!isNaN(yr)) {
@@ -461,7 +465,7 @@ export default function App({ data = [] }) {
         }
       }
 
-      // Source Rows Parsing with Type Casting
+      // Source Rows Parsing with Type Casting (Strict CamelCase Schema)
       if (map.sourceMetric !== -1 && r[map.sourceMetric]) {
         const yr = map.sourceYear !== -1 && r[map.sourceYear] ? Number(r[map.sourceYear]) : (result.channelRows[result.channelRows.length - 1]?.year || 2026);
         result.sourceRows.push({
@@ -482,7 +486,7 @@ export default function App({ data = [] }) {
         });
       }
 
-      // Sub Source Rows Parsing with Type Casting
+      // Sub Source Rows Parsing with Type Casting (Strict CamelCase Schema)
       if (map.subsourceMetric !== -1 && r[map.subsourceMetric]) {
         const yr = map.subsourceYear !== -1 && r[map.subsourceYear] ? Number(r[map.subsourceYear]) : 2026;
         result.subsourceRows.push({
@@ -503,7 +507,7 @@ export default function App({ data = [] }) {
         });
       }
 
-      // Pace Rows Parsing with Type Casting
+      // Pace Rows Parsing with Type Casting (Strict CamelCase Schema)
       if (map.paceYear !== -1 && r[map.paceYear]) {
         const yr = Number(r[map.paceYear]);
         if (!isNaN(yr)) {
@@ -753,7 +757,8 @@ export default function App({ data = [] }) {
       <header className="bg-white border-b sticky top-0 z-40 shadow-sm" style={{ borderColor: `${BRAND_COLORS.aqua}33` }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex flex-col gap-6">
-            
+
+            {/* IMPORTANT: Leave the SVG full logo below in the code base, do not replace with a text version */}           
             {/* Row 1: Brand Header and Filters */}
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
               <div className="flex items-center h-[35px]">
@@ -1329,18 +1334,9 @@ export default function App({ data = [] }) {
                   ))}
                 </div>
               </div>
-
-              {/* Footer Annotation */}
-              <div className="flex justify-between items-center text-[10px] font-khand font-bold uppercase tracking-widest text-slate-400 border-t border-slate-100 pt-6">
-                <span className="pt-[2px]">Metrics by RevRebel</span>
-                <span className="pt-[2px]">Based on Selected Period: {periodLabel}</span>
-              </div>
-
             </div>
-
           </div>
         )}
-
       </div>
 
       {/* Footer */}
