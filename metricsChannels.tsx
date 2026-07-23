@@ -109,6 +109,12 @@ function DonutChart({ data, colors }) {
   const rOuter = 130;
   const rInner = 85;
 
+  const colorList = useMemo(() => {
+    if (Array.isArray(colors)) return colors;
+    if (colors && typeof colors === 'object') return Object.values(colors);
+    return Object.values(BRAND_COLORS);
+  }, [colors]);
+
   const total = useMemo(() => data.reduce((acc, d) => acc + (d.value || 0), 0), [data]);
 
   const slices = useMemo(() => {
@@ -139,12 +145,12 @@ function DonutChart({ data, colors }) {
 
       return {
         ...d,
-        color: colors[i % colors.length],
+        color: colorList[i % colorList.length],
         pathData,
         index: i
       };
     });
-  }, [data, colors, total, activeSlice]);
+  }, [data, colorList, total, activeSlice]);
 
   const hoveredData = activeSlice !== null ? slices[activeSlice] : null;
 
@@ -168,7 +174,7 @@ function DonutChart({ data, colors }) {
         <text x={cx} y={cy - 8} textAnchor="middle" className="font-khand font-bold uppercase" style={{ fontSize: '22px', fill: BRAND_COLORS.primary }}>
           TOTAL
         </text>
-        <text x={cx} y={cy + 22} textAnchor="middle" className="font-khand font-bold" style={{ fontSize: '24px', fill: BRAND_COLORS.cyan }}>
+        <text x={cx} y={cy + 22} textAnchor="middle" className="font-khand font-bold" style={{ fontSize: '24px', fill: BRAND_COLORS.primary }}>
           {`${formatNumber(total)} RNS`}
         </text>
       </svg>
@@ -190,12 +196,15 @@ function DonutChart({ data, colors }) {
         </div>
       )}
 
-      {/* Stacked Vertical Legend */}
-      <div className="flex flex-col gap-2 mt-4 w-full max-w-[220px]">
-        {data.slice(0, 6).map((d, i) => (
-          <div key={i} className="flex items-center gap-2 text-xs font-roboto font-medium text-slate-600">
-            <div className="w-3.5 h-3.5 rounded-none shrink-0" style={{ backgroundColor: colors[i % colors.length] }}></div>
-            <span className="uppercase text-xs font-bold font-khand pt-[2px] truncate" style={{ color: BRAND_COLORS.primary }}>{d.name}</span>
+      {/* Vertical Stacked Legend */}
+      <div className="flex flex-col gap-2 mt-4 w-full px-4">
+        {data.map((d, i) => (
+          <div key={i} className="flex items-center justify-between text-xs font-roboto font-medium text-slate-600 border-b border-slate-100 pb-1">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-none shrink-0" style={{ backgroundColor: colorList[i % colorList.length] }}></div>
+              <span className="uppercase text-xs font-bold font-khand pt-[2px] truncate max-w-[160px]">{d.name}</span>
+            </div>
+            <span className="font-bold text-slate-700">{formatNumber(d.value)} RNS</span>
           </div>
         ))}
       </div>
@@ -203,7 +212,215 @@ function DonutChart({ data, colors }) {
   );
 }
 
-function PaceComparisonChart({ data, selectedYear }) {
+function PickupPatternChart({ leadDays, avgADR = 185, totalNights = 1200 }) {
+  const [hoveredPoint, setHoveredPoint] = useState(null);
+  const [hoverType, setHoverType] = useState(null); // 'occ' | 'adr'
+
+  const width = 600;
+  const height = 280;
+  const paddingLeft = 45;
+  const paddingRight = 55;
+  const paddingBottom = 40;
+  const paddingTop = 25;
+
+  const chartW = width - paddingLeft - paddingRight;
+  const chartH = height - paddingTop - paddingBottom;
+
+  const x0 = leadDays || 15;
+  const k = 0.08;
+  const generatePickup = (d) => 100 / (1 + Math.exp(k * (d - x0)));
+
+  const windowDays = [90, 75, 60, 45, 30, 21, 14, 7, 3, 0];
+  const baseAdr = avgADR > 0 ? avgADR : 185;
+  const totalCapacity = totalNights > 0 ? totalNights : 1250;
+
+  const points = useMemo(() => {
+    return windowDays.map((d, idx) => {
+      const pct = generatePickup(d);
+      const px = paddingLeft + ((90 - d) / 90) * chartW;
+      const rooms = Math.round((pct / 100) * totalCapacity);
+      
+      const adrMultiplier = 0.82 + (0.28 * Math.pow((90 - d) / 90, 0.85));
+      const adr = baseAdr * adrMultiplier;
+
+      let occChange = 0;
+      let roomsChange = 0;
+      let adrChange = 0;
+
+      if (idx > 0) {
+        const prevPct = generatePickup(windowDays[idx - 1]);
+        const prevRooms = Math.round((prevPct / 100) * totalCapacity);
+        const prevAdr = baseAdr * (0.82 + (0.28 * Math.pow((90 - windowDays[idx - 1]) / 90, 0.85)));
+
+        occChange = pct - prevPct;
+        roomsChange = rooms - prevRooms;
+        adrChange = adr - prevAdr;
+      }
+
+      return {
+        d,
+        pct,
+        rooms,
+        adr,
+        occChange,
+        roomsChange,
+        adrChange,
+        px,
+        pyOcc: paddingTop + chartH - (pct / 100) * chartH
+      };
+    });
+  }, [windowDays, chartW, chartH, baseAdr, totalCapacity]);
+
+  const maxAdr = useMemo(() => Math.max(...points.map(p => p.adr), 100) * 1.15, [points]);
+
+  const pointsWithY = useMemo(() => {
+    return points.map(p => ({
+      ...p,
+      pyAdr: paddingTop + chartH - (p.adr / maxAdr) * chartH
+    }));
+  }, [points, chartH, maxAdr]);
+
+  const pathOccD = pointsWithY.reduce((acc, p, i) => `${acc} ${i === 0 ? 'M' : 'L'} ${p.px.toFixed(1)} ${p.pyOcc.toFixed(1)}`, '');
+  const pathAdrD = pointsWithY.reduce((acc, p, i) => `${acc} ${i === 0 ? 'M' : 'L'} ${p.px.toFixed(1)} ${p.pyAdr.toFixed(1)}`, '');
+
+  const activePoint = hoveredPoint !== null ? pointsWithY[hoveredPoint] : null;
+
+  return (
+    <div className="w-full relative select-none">
+      <div className="overflow-x-auto">
+        <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto">
+          {/* Background Grid Lines & Left Y-Axis (Occupancy %) */}
+          {[0, 25, 50, 75, 100].map((pct) => {
+            const y = paddingTop + chartH - (pct / 100) * chartH;
+            return (
+              <g key={pct}>
+                <line x1={paddingLeft} y1={y} x2={width - paddingRight} y2={y} stroke="#e2e8f0" strokeDasharray="3,3" />
+                <text x={paddingLeft - 6} y={y + 3} textAnchor="end" className="font-roboto font-bold" fontSize="9" fill={BRAND_COLORS.cyan}>
+                  {`${pct}%`}
+                </text>
+              </g>
+            );
+          })}
+
+          {/* Right Y-Axis (ADR $) */}
+          {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+            const val = maxAdr * ratio;
+            const y = paddingTop + chartH - (ratio * chartH);
+            return (
+              <text key={ratio} x={width - paddingRight + 6} y={y + 3} textAnchor="start" className="font-roboto font-bold" fontSize="9" fill={BRAND_COLORS.orange}>
+                {formatCompactUSD(val)}
+              </text>
+            );
+          })}
+
+          {/* X-Axis Days Labels */}
+          {[90, 60, 30, 0].map((d) => {
+            const x = paddingLeft + ((90 - d) / 90) * chartW;
+            return (
+              <text key={d} x={x} y={height - 12} textAnchor="middle" className="font-khand font-bold" fontSize="10" fill={BRAND_COLORS.primary}>
+                {`${d} DAYS OUT`}
+              </text>
+            );
+          })}
+
+          {/* Lines */}
+          <path d={pathOccD} fill="none" stroke={BRAND_COLORS.cyan} strokeWidth="3.5" />
+          <path d={pathAdrD} fill="none" stroke={BRAND_COLORS.orange} strokeWidth="3.5" strokeDasharray="5,2" />
+
+          {/* Data Nodes & Targets */}
+          {pointsWithY.map((p, idx) => (
+            <g key={idx}>
+              <circle
+                cx={p.px}
+                cy={p.pyOcc}
+                r={hoveredPoint === idx && hoverType === 'occ' ? 7 : 4}
+                fill={BRAND_COLORS.cyan}
+                stroke="#FFFFFF"
+                strokeWidth="2"
+                className="cursor-pointer transition-all duration-150"
+                onMouseEnter={() => { setHoveredPoint(idx); setHoverType('occ'); }}
+                onMouseLeave={() => { setHoveredPoint(null); setHoverType(null); }}
+              />
+
+              <circle
+                cx={p.px}
+                cy={p.pyAdr}
+                r={hoveredPoint === idx && hoverType === 'adr' ? 7 : 4}
+                fill={BRAND_COLORS.orange}
+                stroke="#FFFFFF"
+                strokeWidth="2"
+                className="cursor-pointer transition-all duration-150"
+                onMouseEnter={() => { setHoveredPoint(idx); setHoverType('adr'); }}
+                onMouseLeave={() => { setHoveredPoint(null); setHoverType(null); }}
+              />
+            </g>
+          ))}
+        </svg>
+      </div>
+
+      {/* Tooltip Overlay */}
+      {activePoint && hoverType && (
+        <div
+          className="absolute z-30 bg-white/95 border-[2px] p-3 shadow-xl pointer-events-none rounded-none text-left min-w-[180px] transition-all duration-150"
+          style={{
+            borderColor: hoverType === 'occ' ? BRAND_COLORS.cyan : BRAND_COLORS.orange,
+            left: `${Math.min(Math.max((activePoint.px / width) * 100, 15), 80)}%`,
+            top: `${hoverType === 'occ' ? Math.max((activePoint.pyOcc / height) * 100 - 35, 5) : Math.max((activePoint.pyAdr / height) * 100 - 35, 5)}%`
+          }}
+        >
+          <p className="font-khand font-bold uppercase text-xs border-b border-slate-100 pb-1 mb-1.5 flex justify-between items-center" style={{ color: BRAND_COLORS.primary }}>
+            <span>{activePoint.d === 0 ? 'SAME DAY (0D)' : `${activePoint.d} DAYS OUT`}</span>
+            <span className="text-[10px] px-1.5 py-0.5" style={{ backgroundColor: hoverType === 'occ' ? BRAND_COLORS.cyan : BRAND_COLORS.orange, color: '#FFFFFF' }}>
+              {hoverType === 'occ' ? 'OCCUPANCY' : 'ADR RATE'}
+            </span>
+          </p>
+
+          {hoverType === 'occ' ? (
+            <div className="space-y-1 font-roboto text-xs">
+              <div className="flex justify-between gap-3">
+                <span className="text-slate-500">Occupancy %:</span>
+                <strong style={{ color: BRAND_COLORS.cyan }}>{activePoint.pct.toFixed(1)}%</strong>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-slate-500">Occ Change:</span>
+                <strong style={{ color: activePoint.occChange >= 0 ? BRAND_COLORS.cyan : BRAND_COLORS.red }}>
+                  {activePoint.occChange >= 0 ? `+${activePoint.occChange.toFixed(1)}%` : `${activePoint.occChange.toFixed(1)}%`}
+                </strong>
+              </div>
+              <div className="flex justify-between gap-3 border-t pt-1 border-slate-100">
+                <span className="text-slate-500">Rooms OTB:</span>
+                <strong style={{ color: BRAND_COLORS.primary }}>{formatNumber(activePoint.rooms)}</strong>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-slate-500">Rooms Pickup:</span>
+                <strong style={{ color: activePoint.roomsChange >= 0 ? BRAND_COLORS.cyan : BRAND_COLORS.red }}>
+                  {activePoint.roomsChange >= 0 ? `+${formatNumber(activePoint.roomsChange)}` : formatNumber(activePoint.roomsChange)}
+                </strong>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-1 font-roboto text-xs">
+              <div className="flex justify-between gap-3">
+                <span className="text-slate-500">Total ADR:</span>
+                <strong style={{ color: BRAND_COLORS.orange }}>{formatPreciseCurrency(activePoint.adr)}</strong>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-slate-500">ADR Change:</span>
+                <strong style={{ color: activePoint.adrChange >= 0 ? BRAND_COLORS.cyan : BRAND_COLORS.red }}>
+                  {activePoint.adrChange >= 0 ? `+${formatPreciseCurrency(activePoint.adrChange)}` : `-${formatPreciseCurrency(Math.abs(activePoint.adrChange))}`}
+                </strong>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PaceComparisonChart({ data, selectedYear, roomsConfig = 188 }) {
+  const [hoveredIndex, setHoveredIndex] = useState(null);
+
   if (!data || !data.length) return null;
 
   const width = 600;
@@ -224,118 +441,193 @@ function PaceComparisonChart({ data, selectedYear }) {
   const tyYearLabel = selectedYear || "2026";
   const stlyYearLabel = selectedYear ? String(Number(selectedYear) - 1) : "2025";
 
+  const DAYS_IN_MONTH = {
+    JAN: 31, FEB: 28, MAR: 31, APR: 30, MAY: 31, JUN: 30,
+    JUL: 31, AUG: 31, SEP: 30, OCT: 31, NOV: 30, DEC: 31
+  };
+
+  const activeItem = hoveredIndex !== null ? data[hoveredIndex] : null;
+
+  let tooltipData = null;
+  if (activeItem) {
+    const monthKey = String(activeItem.month || '').substring(0, 3).toUpperCase();
+    const days = DAYS_IN_MONTH[monthKey] || 30;
+    const capacity = days * (roomsConfig || 188);
+
+    const tyRev = activeItem.ty || 0;
+    const stlyRev = activeItem.stly || 0;
+    const revChg = tyRev - stlyRev;
+
+    const tyNights = activeItem.tyNights || (tyRev > 0 ? Math.round(tyRev / 185) : 0);
+    const stlyNights = activeItem.stlyNights || (stlyRev > 0 ? Math.round(stlyRev / 175) : 0);
+    const nightsChg = tyNights - stlyNights;
+
+    const tyAdr = tyNights > 0 ? tyRev / tyNights : 0;
+    const stlyAdr = stlyNights > 0 ? stlyRev / stlyNights : 0;
+    const adrChg = tyAdr - stlyAdr;
+
+    const tyOcc = capacity > 0 ? (tyNights / capacity) * 100 : 0;
+    const stlyOcc = capacity > 0 ? (stlyNights / capacity) * 100 : 0;
+    const occChg = tyOcc - stlyOcc;
+
+    const groupX = paddingLeft + (hoveredIndex * groupWidth) + groupWidth / 2;
+    const posX = (groupX / width) * 100;
+
+    tooltipData = {
+      month: activeItem.month,
+      posX,
+      tyRev, revChg,
+      tyNights, nightsChg,
+      tyAdr, adrChg,
+      tyOcc, occChg
+    };
+  }
+
   return (
-    <div className="w-full overflow-x-auto">
-      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto select-none">
-        {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
-          const val = maxVal * ratio;
-          const y = paddingTop + chartH - (ratio * chartH);
-          return (
-            <g key={ratio}>
-              <line x1={paddingLeft} y1={y} x2={width - paddingRight} y2={y} stroke="#e2e8f0" strokeDasharray="3,3" />
-              <text x={paddingLeft - 8} y={y + 4} textAnchor="end" className="font-roboto" fontSize="10" fill="#64748b">
-                {formatCompactUSD(val)}
-              </text>
-            </g>
-          );
-        })}
+    <div className="w-full relative select-none">
+      <div className="overflow-x-auto">
+        <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto">
+          {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+            const val = maxVal * ratio;
+            const y = paddingTop + chartH - (ratio * chartH);
+            return (
+              <g key={ratio}>
+                <line x1={paddingLeft} y1={y} x2={width - paddingRight} y2={y} stroke="#e2e8f0" strokeDasharray="3,3" />
+                <text x={paddingLeft - 8} y={y + 4} textAnchor="end" className="font-roboto" fontSize="10" fill="#64748b">
+                  {formatCompactUSD(val)}
+                </text>
+              </g>
+            );
+          })}
 
-        {data.map((d, i) => {
-          const groupX = paddingLeft + (i * groupWidth) + (groupWidth - (barWidth * 2 + 4)) / 2;
-          const tyH = (d.ty / maxVal) * chartH;
-          const stlyH = (d.stly / maxVal) * chartH;
+          {data.map((d, i) => {
+            const groupX = paddingLeft + (i * groupWidth) + (groupWidth - (barWidth * 2 + 4)) / 2;
+            const tyH = (d.ty / maxVal) * chartH;
+            const stlyH = (d.stly / maxVal) * chartH;
 
-          const tyY = paddingTop + chartH - tyH;
-          const stlyY = paddingTop + chartH - stlyH;
+            const tyY = paddingTop + chartH - tyH;
+            const stlyY = paddingTop + chartH - stlyH;
+            const isHovered = hoveredIndex === i;
 
-          return (
-            <g key={d.month || i}>
-              <rect x={groupX} y={tyY} width={barWidth} height={tyH} fill={BRAND_COLORS.cyan} />
-              <rect x={groupX + barWidth + 4} y={stlyY} width={barWidth} height={stlyH} fill={BRAND_COLORS.primary} />
-              <text
-                x={groupX + barWidth + 2}
-                y={height - 12}
-                textAnchor="middle"
-                className="font-khand font-bold uppercase"
-                fontSize="11"
-                fill={BRAND_COLORS.primary}
-              >
-                {String(d.month).substring(0, 3).toUpperCase()}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
+            return (
+              <g key={d.month || i}>
+                <rect 
+                  x={groupX} 
+                  y={tyY} 
+                  width={barWidth} 
+                  height={tyH} 
+                  fill={BRAND_COLORS.teal} 
+                  opacity={isHovered ? 1 : 0.9} 
+                  stroke={isHovered ? BRAND_COLORS.primary : 'none'}
+                  strokeWidth="1"
+                />
+                <rect 
+                  x={groupX + barWidth + 4} 
+                  y={stlyY} 
+                  width={barWidth} 
+                  height={stlyH} 
+                  fill={BRAND_COLORS.aqua} 
+                  opacity={isHovered ? 1 : 0.85} 
+                  stroke={isHovered ? BRAND_COLORS.primary : 'none'}
+                  strokeWidth="1"
+                />
+                <text
+                  x={groupX + barWidth + 2}
+                  y={height - 12}
+                  textAnchor="middle"
+                  className="font-khand font-bold uppercase"
+                  fontSize="11"
+                  fill={BRAND_COLORS.primary}
+                >
+                  {String(d.month).substring(0, 3).toUpperCase()}
+                </text>
+
+                {/* Hit target rectangle for hover interactions */}
+                <rect
+                  x={paddingLeft + i * groupWidth}
+                  y={paddingTop}
+                  width={groupWidth}
+                  height={chartH + 20}
+                  fill="transparent"
+                  className="cursor-pointer"
+                  onMouseEnter={() => setHoveredIndex(i)}
+                  onMouseLeave={() => setHoveredIndex(null)}
+                />
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+
+      {/* Hover Tooltip Overlay */}
+      {tooltipData && (
+        <div
+          className="absolute z-30 bg-white/95 border-[2px] p-3 shadow-xl pointer-events-none rounded-none text-left min-w-[220px] transition-all duration-150"
+          style={{
+            borderColor: BRAND_COLORS.teal,
+            left: `${Math.min(Math.max(tooltipData.posX, 20), 75)}%`,
+            top: '10%'
+          }}
+        >
+          <p className="font-khand font-bold uppercase text-xs border-b border-slate-100 pb-1 mb-2 flex justify-between items-center" style={{ color: BRAND_COLORS.primary }}>
+            <span>{tooltipData.month} PACING ({tyYearLabel})</span>
+            <span className="text-[10px] px-1.5 py-0.5 bg-[#047C97] text-white">OTB VS STLY</span>
+          </p>
+
+          <div className="space-y-1.5 font-roboto text-xs">
+            <div className="flex justify-between gap-3 items-center">
+              <span className="text-slate-500 font-medium">Occupancy OTB:</span>
+              <div>
+                <strong style={{ color: BRAND_COLORS.primary }}>{tooltipData.tyOcc.toFixed(1)}%</strong>
+                <span className="ml-1 text-[11px] font-bold" style={{ color: tooltipData.occChg >= 0 ? BRAND_COLORS.cyan : BRAND_COLORS.red }}>
+                  ({tooltipData.occChg >= 0 ? `+${tooltipData.occChg.toFixed(1)}%` : `${tooltipData.occChg.toFixed(1)}%`})
+                </span>
+              </div>
+            </div>
+
+            <div className="flex justify-between gap-3 items-center">
+              <span className="text-slate-500 font-medium">Rooms OTB:</span>
+              <div>
+                <strong style={{ color: BRAND_COLORS.primary }}>{formatNumber(tooltipData.tyNights)}</strong>
+                <span className="ml-1 text-[11px] font-bold" style={{ color: tooltipData.nightsChg >= 0 ? BRAND_COLORS.cyan : BRAND_COLORS.red }}>
+                  ({tooltipData.nightsChg >= 0 ? `+${formatNumber(tooltipData.nightsChg)}` : formatNumber(tooltipData.nightsChg)})
+                </span>
+              </div>
+            </div>
+
+            <div className="flex justify-between gap-3 items-center">
+              <span className="text-slate-500 font-medium">ADR OTB:</span>
+              <div>
+                <strong style={{ color: BRAND_COLORS.primary }}>{formatPreciseCurrency(tooltipData.tyAdr)}</strong>
+                <span className="ml-1 text-[11px] font-bold" style={{ color: tooltipData.adrChg >= 0 ? BRAND_COLORS.cyan : BRAND_COLORS.red }}>
+                  ({tooltipData.adrChg >= 0 ? `+${formatPreciseCurrency(tooltipData.adrChg)}` : `-${formatPreciseCurrency(Math.abs(tooltipData.adrChg))}`})
+                </span>
+              </div>
+            </div>
+
+            <div className="flex justify-between gap-3 items-center border-t pt-1 border-slate-100">
+              <span className="text-slate-500 font-medium">Revenue OTB:</span>
+              <div>
+                <strong style={{ color: BRAND_COLORS.teal }}>{formatCurrency(tooltipData.tyRev)}</strong>
+                <span className="ml-1 text-[11px] font-bold" style={{ color: tooltipData.revChg >= 0 ? BRAND_COLORS.cyan : BRAND_COLORS.red }}>
+                  ({tooltipData.revChg >= 0 ? `+${formatCompactUSD(tooltipData.revChg)}` : `-${formatCompactUSD(Math.abs(tooltipData.revChg))}`})
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex justify-center gap-6 mt-2">
         <div className="flex items-center gap-2 text-xs font-khand font-bold uppercase">
-          <div className="w-3 h-3" style={{ backgroundColor: BRAND_COLORS.cyan }}></div>
+          <div className="w-3 h-3" style={{ backgroundColor: BRAND_COLORS.teal }}></div>
           <span className="pt-[2px]">{tyYearLabel} OTB REVENUE</span>
         </div>
         <div className="flex items-center gap-2 text-xs font-khand font-bold uppercase">
-          <div className="w-3 h-3" style={{ backgroundColor: BRAND_COLORS.primary }}></div>
+          <div className="w-3 h-3" style={{ backgroundColor: BRAND_COLORS.aqua }}></div>
           <span className="pt-[2px]">{stlyYearLabel} STLY REVENUE</span>
         </div>
       </div>
-    </div>
-  );
-}
-
-function PickupPatternChart({ leadDays }) {
-  const width = 600;
-  const height = 260;
-  const paddingLeft = 50;
-  const paddingBottom = 40;
-  const paddingTop = 20;
-  const paddingRight = 20;
-
-  const chartW = width - paddingLeft - paddingRight;
-  const chartH = height - paddingTop - paddingBottom;
-
-  const x0 = leadDays || 15;
-  const k = 0.08;
-  const generatePickup = (d) => 100 / (1 + Math.exp(k * (d - x0)));
-
-  const points = [];
-  for (let d = 90; d >= 0; d -= 2) {
-    const pct = generatePickup(d);
-    const px = paddingLeft + ((90 - d) / 90) * chartW;
-    const py = paddingTop + chartH - (pct / 100) * chartH;
-    points.push({ x: px, y: py, d, pct });
-  }
-
-  const pathD = points.reduce((acc, p, i) => `${acc} ${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`, '');
-
-  const markerX = paddingLeft + ((90 - x0) / 90) * chartW;
-  const markerPct = generatePickup(x0);
-  const markerY = paddingTop + chartH - (markerPct / 100) * chartH;
-
-  return (
-    <div className="w-full overflow-x-auto">
-      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto select-none">
-        {[0, 25, 50, 75, 100].map((pct) => {
-          const y = paddingTop + chartH - (pct / 100) * chartH;
-          return (
-            <g key={pct}>
-              <line x1={paddingLeft} y1={y} x2={width - paddingRight} y2={y} stroke="#e2e8f0" strokeDasharray="3,3" />
-              <text x={paddingLeft - 8} y={y + 4} textAnchor="end" className="font-roboto" fontSize="10" fill="#64748b">
-                {`${pct}%`}
-              </text>
-            </g>
-          );
-        })}
-
-        {[90, 60, 30, 0].map((d) => {
-          const x = paddingLeft + ((90 - d) / 90) * chartW;
-          return (
-            <text key={d} x={x} y={height - 12} textAnchor="middle" className="font-roboto" fontSize="10" fill={BRAND_COLORS.primary}>
-              {`${d}D`}
-            </text>
-          );
-        })}
-
-        <path d={pathD} fill="none" stroke={BRAND_COLORS.cyan} strokeWidth="4" />
-        <circle cx={markerX} cy={markerY} r="6" fill={BRAND_COLORS.yellow} stroke={BRAND_COLORS.primary} strokeWidth="2" />
-      </svg>
     </div>
   );
 }
@@ -345,7 +637,7 @@ export default function App({ data = [] }) {
   const [selectedMonth, setSelectedMonth] = useState('YTD');
   const [selectedYear, setSelectedYear] = useState('');
   const [selectedPaceSource, setSelectedPaceSource] = useState('ALL');
-  const [profileMetricType, setProfileMetricType] = useState('CHANNEL'); // 'CHANNEL' | 'SOURCE' | 'SUBSOURCE'
+  const [profileMetricType, setProfileMetricType] = useState('CHANNEL');
   const [selectedChannelProfile, setSelectedChannelProfile] = useState('ALL');
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
 
@@ -433,6 +725,9 @@ export default function App({ data = [] }) {
       if (map.rooms !== -1) result.roomsConfig = Number(data[2].row[map.rooms]) || result.roomsConfig;
     }
 
+    // Row 1 (idx 0): Clean converted unique identifier headers from row 2 BigQuery export
+    // Row 2 (idx 1): Original raw BigQuery header row (EXPLICITLY BYPASSED to prevent header duplication)
+    // Row 3+ (idx >= 2): Primary data payload rows
     data.forEach((item, idx) => {
       // Explicitly bypass Row 1 (headers) and Row 2 (raw BigQuery export headers)
       if (idx <= 1) return;
@@ -872,7 +1167,7 @@ export default function App({ data = [] }) {
 
         {/* WORKSPACE TAB: OVERVIEW */}
         {(activeTab === 'overview' || activeTab === 'dashboard') && (
-          <div className="space-y-8 animate-in fade-in duration-500">
+          <div className="space-y-3 animate-in fade-in duration-500">
 
              {/* Top KPI Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 w-full">
@@ -892,8 +1187,8 @@ export default function App({ data = [] }) {
                 diff={formatNumber(Math.abs(kpiStats.totalNights - kpiStats.stlyNights))}
                 isNeg={kpiStats.totalNights - kpiStats.stlyNights < 0}
                 bgColor={BRAND_COLORS.teal} 
-                textColor={BRAND_COLORS.frost}
-                labelColor={`${BRAND_COLORS.frost}B3`}
+                textColor="#FFFFFF"
+                labelColor="#FFFFFFB3"
               />
 
               <KPICard 
@@ -920,7 +1215,7 @@ export default function App({ data = [] }) {
                 className="p-5 flex flex-col justify-center items-center text-center h-44 shadow-md transition-transform hover:scale-[1.02] rounded-none border border-black/5"
                 style={{ backgroundColor: BRAND_COLORS.powder }}
               >
-                <h3 className="text-8xl font-khand font-bold tracking-tight leading-none pt-[2px]" style={{ color: BRAND_COLORS.primary }}>
+                <h3 className="text-6xl font-khand font-bold tracking-tight leading-none pt-[2px]" style={{ color: BRAND_COLORS.primary }}>
                   {Math.round(kpiStats.avgLead)}
                 </h3>
                 <p className="text-sm font-khand font-bold uppercase tracking-wider mt-1 pt-[2px]" style={{ color: BRAND_COLORS.primary }}>
@@ -929,14 +1224,14 @@ export default function App({ data = [] }) {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-[3px] border-[3px] w-full shadow-md rounded-none" style={{ backgroundColor: BRAND_COLORS.primary, borderColor: BRAND_COLORS.primary }}>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 w-full">
               
-              <div className="lg:col-span-2" style={{ backgroundColor: BRAND_COLORS.white }}>
+              <div className="lg:col-span-2 border-[3px] shadow-md rounded-none" style={{ backgroundColor: BRAND_COLORS.white, borderColor: BRAND_COLORS.primary }}>
                 <div className="p-6 border-b-[3px] flex justify-between items-center" style={{ borderColor: BRAND_COLORS.primary, backgroundColor: BRAND_COLORS.white }}>
                   <h3 className="font-khand uppercase font-bold tracking-wider text-lg pt-[2px]">
-                    Performance Summary Matrix
+                    Segments
                   </h3>
-                  <div className="text-xs font-khand font-bold uppercase tracking-widest text-white px-3 pt-[6px] pb-1" style={{ backgroundColor: BRAND_COLORS.cyan }}>
+                  <div className="text-xs font-khand font-bold uppercase tracking-widest px-3 pt-[6px] pb-1" style={{ backgroundColor: BRAND_COLORS.cyan, color: BRAND_COLORS.yellow }}>
                     {periodLabel}
                   </div>
                 </div>
@@ -980,7 +1275,7 @@ export default function App({ data = [] }) {
                 </div>
               </div>
 
-              <div className="p-8 flex flex-col h-full border-l-[3px] lg:border-l-0" style={{ backgroundColor: BRAND_COLORS.white, borderColor: BRAND_COLORS.primary }}>
+              <div className="p-8 flex flex-col h-full border-[3px] shadow-md rounded-none" style={{ backgroundColor: BRAND_COLORS.white, borderColor: BRAND_COLORS.primary }}>
                 <h3 className="font-khand uppercase font-bold tracking-widest text-lg mb-8 pt-[2px]" style={{ color: BRAND_COLORS.primary }}>
                   % of Room Nights Mix
                 </h3>
@@ -994,16 +1289,7 @@ export default function App({ data = [] }) {
                         revenue: d.value,
                         adr: d.adr
                       }))} 
-                      colors={[
-                        BRAND_COLORS.primary, 
-                        BRAND_COLORS.teal, 
-                        BRAND_COLORS.cyan, 
-                        BRAND_COLORS.aqua, 
-                        BRAND_COLORS.powder, 
-                        BRAND_COLORS.yellow, 
-                        BRAND_COLORS.orange, 
-                        BRAND_COLORS.red
-                      ]} 
+                      colors={BRAND_COLORS} 
                     />
                   ) : (
                     <div className="text-center py-12 text-slate-400 font-khand uppercase text-xs pt-[2px]">
@@ -1019,8 +1305,9 @@ export default function App({ data = [] }) {
 
         {/* WORKSPACE TAB: PICKUP & PACE */}
         {(activeTab === 'pickup & pace' || activeTab === 'pace_pickup') && (
-          <div className="space-y-8 animate-in">
+          <div className="space-y-3 animate-in">
             
+            {}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 w-full">
               
               <div className="p-5 flex flex-col justify-between h-44 rounded-none shadow-md" style={{ backgroundColor: BRAND_COLORS.primary }}>
@@ -1041,16 +1328,16 @@ export default function App({ data = [] }) {
               </div>
 
               <div className="p-5 flex flex-col justify-between h-44 rounded-none shadow-md" style={{ backgroundColor: BRAND_COLORS.teal }}>
-                <span className="text-lg font-khand font-bold uppercase tracking-wider pt-[2px]" style={{ color: `${BRAND_COLORS.frost}B3` }}>
+                <span className="text-lg font-khand font-bold uppercase tracking-wider text-white/70 pt-[2px]">
                   ADR CHG
                 </span>
                 <div className="flex flex-col gap-0.5 -mt-6">
-                  <span className="text-4xl md:text-5xl font-khand font-bold uppercase tracking-normal leading-none pt-[2px]" style={{ color: BRAND_COLORS.frost }}>
+                  <span className="text-4xl md:text-5xl font-khand font-bold uppercase tracking-normal leading-none text-white pt-[2px]">
                     {kpiStats.avgADR - kpiStats.stlyADR >= 0 ? `+$${(kpiStats.avgADR - kpiStats.stlyADR).toFixed(2)}` : `-$${Math.abs(kpiStats.avgADR - kpiStats.stlyADR).toFixed(2)}`}
                   </span>
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    <ChangeIndicator isNeg={kpiStats.avgADR - kpiStats.stlyADR < 0} textColor={BRAND_COLORS.frost} bgColor={BRAND_COLORS.cyan} />
-                    <span className="text-sm font-roboto font-medium tracking-normal text-white" style={{ color: `${BRAND_COLORS.frost}B3` }}>
+                    <ChangeIndicator isNeg={kpiStats.avgADR - kpiStats.stlyADR < 0} textColor="#FFFFFF" bgColor={BRAND_COLORS.teal} />
+                    <span className="text-sm font-roboto font-medium tracking-normal text-white">
                       {kpiStats.stlyADR > 0 ? `${(((kpiStats.avgADR - kpiStats.stlyADR) / kpiStats.stlyADR) * 100).toFixed(1)}%` : '0.0%'}
                     </span>
                   </div>
@@ -1092,7 +1379,7 @@ export default function App({ data = [] }) {
               </div>
 
               <div className="p-5 flex flex-col justify-center items-center text-center h-44 rounded-none shadow-md" style={{ backgroundColor: BRAND_COLORS.powder }}>
-                <h3 className="text-8xl font-khand font-bold tracking-tight leading-none pt-[2px]" style={{ color: BRAND_COLORS.primary }}>
+                <h3 className="text-6xl font-khand font-bold tracking-tight leading-none pt-[2px]" style={{ color: BRAND_COLORS.primary }}>
                   {Math.round(kpiStats.avgLead || 0)}
                 </h3>
                 <p className="text-sm font-khand font-bold uppercase tracking-wider mt-1 pt-[2px]" style={{ color: BRAND_COLORS.primary }}>
@@ -1102,13 +1389,13 @@ export default function App({ data = [] }) {
 
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
               <div className="bg-white p-8 border-[3px] rounded-none" style={{ borderColor: BRAND_COLORS.primary }}>
                 <h3 className="font-khand uppercase font-bold tracking-wider text-xl mb-4 pt-[2px]">
                   Revenue OTB Pace ({selectedYear || '2026'} vs. {selectedYear ? Number(selectedYear) - 1 : '2025'}){selectedPaceSource !== 'ALL' ? ` - ${selectedPaceSource}` : ''}
                 </h3>
                 {filteredPaceRows.length > 0 ? (
-                  <PaceComparisonChart data={filteredPaceRows} selectedYear={selectedYear} />
+                  <PaceComparisonChart data={filteredPaceRows} selectedYear={selectedYear} roomsConfig={roomsConfig} />
                 ) : (
                   <div className="text-center py-12 text-slate-400 font-khand uppercase text-xs pt-[2px]">No Pace Data Found</div>
                 )}
@@ -1116,18 +1403,18 @@ export default function App({ data = [] }) {
 
               <div className="bg-white p-8 border-[3px] rounded-none" style={{ borderColor: BRAND_COLORS.primary }}>
                 <h3 className="font-khand uppercase font-bold tracking-wider text-xl mb-4 pt-[2px]">
-                  Occupancy Booking Window Pickup Velocity
+                  Booking Window Pickup Velocity
                 </h3>
-                <PickupPatternChart leadDays={kpiStats.avgLead} />
+                <PickupPatternChart leadDays={kpiStats.avgLead} avgADR={kpiStats.avgADR} totalNights={kpiStats.totalNights} />
               </div>
             </div>
 
             <div className="bg-white border-[3px] rounded-none overflow-hidden" style={{ borderColor: BRAND_COLORS.primary }}>
               <div className="p-6 border-b-[3px] bg-slate-50 flex justify-between items-center" style={{ borderColor: BRAND_COLORS.primary }}>
                 <h3 className="font-khand uppercase font-bold tracking-wider text-lg pt-[2px]">
-                  Monthly Matrix Breakdown
+                  Monthly Breakdown
                 </h3>
-                <span className="text-xs font-khand font-bold uppercase tracking-widest text-white px-3 pt-[6px] pb-1" style={{ backgroundColor: BRAND_COLORS.cyan }}>
+                <span className="text-xs font-khand font-bold uppercase tracking-widest px-3 pt-[6px] pb-1" style={{ backgroundColor: BRAND_COLORS.cyan, color: BRAND_COLORS.yellow }}>
                   {periodLabel} CALENDAR PACING
                 </span>
               </div>
@@ -1177,7 +1464,7 @@ export default function App({ data = [] }) {
 
         {/* WORKSPACE TAB: STAY PROFILES */}
         {activeTab === 'stay_profiles' && (
-          <div className="space-y-8 animate-in">
+          <div className="space-y-3 animate-in">
             
             <div className="bg-white p-6 border-[3px] rounded-none flex justify-between items-center flex-wrap gap-4" style={{ borderColor: BRAND_COLORS.primary }}>
               <div>
@@ -1262,7 +1549,7 @@ export default function App({ data = [] }) {
 
               {/* SECTION 1: STAY DURATION */}
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8 border-b border-slate-100 pb-10">
-                <div className="lg:w-52 shrink-0">
+                <div className="lg:max-w-xs w-full shrink-0">
                   <h4 className="font-khand uppercase font-bold text-xl tracking-wider leading-none pt-[2px]" style={{ color: BRAND_COLORS.primary }}>
                     LENGTH OF STAY
                   </h4>
@@ -1278,7 +1565,7 @@ export default function App({ data = [] }) {
                     { label: "6 NIGHTS", style:  { backgroundColor: BRAND_COLORS.frost, border: `2px solid ${BRAND_COLORS.cyan }`, color: BRAND_COLORS.cyan } },
                     { label: "7+ NIGHTS", style: { backgroundColor: BRAND_COLORS.white, border: `2px solid ${BRAND_COLORS.aqua }`, color: BRAND_COLORS.aqua } }
                   ].map((block, idx) => (
-                    <div key={idx} className="flex flex-col items-center w-full">
+                    <div key={idx} className="flex flex-col items-center">
                       <span className="text-xs sm:text-sm font-bold font-khand uppercase mb-1 whitespace-nowrap pt-[2px]" style={{ color: BRAND_COLORS.primary }}>
                         {block.label}
                       </span>
@@ -1300,7 +1587,7 @@ export default function App({ data = [] }) {
 
               {/* SECTION 2: BOOKING LEAD TIME */}
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8 pb-6">
-                <div className="lg:w-52 shrink-0">
+                <div className="lg:max-w-xs w-full shrink-0">
                   <h4 className="font-khand uppercase font-bold text-xl tracking-wider leading-none pt-[2px]" style={{ color: BRAND_COLORS.primary }}>
                     LEAD DAYS
                   </h4>
@@ -1316,7 +1603,7 @@ export default function App({ data = [] }) {
                     { label: "61-90 DAYS", style: { backgroundColor: '#b4126d', color: BRAND_COLORS.orange } },
                     { label: "91+ DAYS",   style: { backgroundColor: BRAND_COLORS.purple, color: BRAND_COLORS.red } }
                   ].map((block, idx) => (
-                    <div key={idx} className="flex flex-col items-center w-full">
+                    <div key={idx} className="flex flex-col items-center">
                       <span className="text-xs sm:text-sm font-bold font-khand uppercase mb-1 whitespace-nowrap pt-[2px]" style={{ color: BRAND_COLORS.primary }}>
                         {block.label}
                       </span>
