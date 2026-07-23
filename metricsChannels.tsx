@@ -1,17 +1,30 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { 
+  Filter, 
+  ChevronDown,
+  LayoutDashboard,
+  Database,
+  Plus,
+  Edit2,
+  Trash2,
+  X,
+  Save,
+  BarChart3,
+  Search
+} from 'lucide-react';
 
-const BRAND_COLORS = {
-  primary: "#163666",
-  teal: "#047C97",
-  cyan: "#00A6B6",
-  aqua: "#71C9C5",
-  powder: "#B2D3DE",
-  yellow: "#FACA78",
-  orange: "#F37D59",
-  red: "#E05047",
-  purple: "#8E456A",
-  frost: "#EFF5F6",
-  white: "#fafafa",
+const BRAND_COLORS = { 
+  primary: "#163666", 
+  teal: "#047C97", 
+  cyan: "#00A6B6", 
+  aqua: "#71C9C5", 
+  powder: "#B2D3DE", 
+  yellow: "#FACA78", 
+  orange: "#F37D59", 
+  red: "#E05047", 
+  purple: "#8E456A", 
+  frost: "#EFF5F6", 
+  white: "#fafafa", 
   successGreen: "#00A6B6"
 };
 
@@ -23,17 +36,12 @@ const fontStyles = `
   .font-roboto { font-family: 'Roboto', sans-serif; }
   .hover-bg-dynamic:hover { background-color: var(--hover-bg-color); }
   .hover-text-dynamic:hover { color: var(--hover-color); }
+  .hide-scrollbar::-webkit-scrollbar { display: none; }
+  .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 `;
 
-const factorial = (n) => {
-  if (n <= 1) return 1;
-  let r = 1;
-  for (let i = 2; i <= n; i++) r *= i;
-  return r;
-};
-
+const factorial = (n) => { if (n <= 1) return 1; let r = 1; for (let i = 2; i <= n; i++) r *= i; return r; };
 const safeString = (val) => (val !== null && val !== undefined) ? String(val).trim() : '';
-
 const formatCurrency = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val || 0);
 const formatPreciseCurrency = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val || 0);
 const formatNumber = (val) => new Intl.NumberFormat('en-US').format(Math.round(val || 0));
@@ -58,19 +66,9 @@ function IconFilter({ size = 16, className = "", style = {} }) {
 
 function ChangeIndicator({ isNeg, textColor, bgColor }) {
   return (
-    <div 
-      className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 shadow-sm"
-      style={{ backgroundColor: textColor }}
-    >
-      <svg 
-        viewBox="0 0 24 24" 
-        className="w-5 h-5 transition-transform duration-300"
-        style={{ transform: isNeg ? 'rotate(180deg)' : 'rotate(0deg)' }}
-      >
-        <path 
-          d="M 12 3 L 5 11 H 8.5 V 21 H 15.5 V 11 H 19 Z" 
-          fill={bgColor} 
-        />
+    <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 shadow-sm" style={{ backgroundColor: textColor }}>
+      <svg viewBox="0 0 24 24" className="w-5 h-5 transition-transform duration-300" style={{ transform: isNeg ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+        <path d="M 12 3 L 5 11 H 8.5 V 21 H 15.5 V 11 H 19 Z" fill={bgColor} />
       </svg>
     </div>
   );
@@ -78,22 +76,13 @@ function ChangeIndicator({ isNeg, textColor, bgColor }) {
 
 function KPICard({ label, value, diff, isNeg, bgColor, textColor, labelColor }) {
   return (
-    <div 
-      className="p-5 flex flex-col justify-between h-44 shadow-md transition-transform hover:scale-[1.02] rounded-none border border-black/5"
-      style={{ backgroundColor: bgColor }}
-    >
-      <span className="text-lg font-khand font-bold uppercase tracking-wider pt-[2px]" style={{ color: labelColor }}>
-        {label}
-      </span>
+    <div className="p-5 flex flex-col justify-between h-44 shadow-md transition-transform hover:scale-[1.02] rounded-none border border-black/5" style={{ backgroundColor: bgColor }}>
+      <span className="text-lg font-khand font-bold uppercase tracking-wider pt-[2px]" style={{ color: labelColor }}>{label}</span>
       <div className="flex flex-col gap-0.5 -mt-4">
-        <span className="text-4xl md:text-5xl font-khand font-bold uppercase tracking-normal leading-none pt-[2px]" style={{ color: textColor }}>
-          {value}
-        </span>
+        <span className="text-4xl md:text-5xl font-khand font-bold uppercase tracking-normal leading-none pt-[2px]" style={{ color: textColor }}>{value}</span>
         <div className="flex items-center gap-1.5 mt-0.5">
           <ChangeIndicator isNeg={isNeg} textColor={textColor} bgColor={bgColor} />
-          <span className="text-sm font-roboto font-medium tracking-normal" style={{ color: textColor }}>
-            {diff}
-          </span>
+          <span className="text-sm font-roboto font-medium tracking-normal" style={{ color: textColor }}>{diff}</span>
         </div>
       </div>
     </div>
@@ -102,20 +91,20 @@ function KPICard({ label, value, diff, isNeg, bgColor, textColor, labelColor }) 
 
 function DonutChart({ data, colors }) {
   const [activeSlice, setActiveSlice] = useState(null);
-  const width = 300;
-  const height = 300;
+  const width = 280;
+  const height = 280;
   const cx = width / 2;
   const cy = height / 2;
-  const rOuter = 130;
-  const rInner = 85;
+  const rOuter = 120;
+  const rInner = 80;
+
+  const total = useMemo(() => data.reduce((acc, d) => acc + (d.value || 0), 0), [data]);
 
   const colorList = useMemo(() => {
     if (Array.isArray(colors)) return colors;
     if (colors && typeof colors === 'object') return Object.values(colors);
     return Object.values(BRAND_COLORS);
   }, [colors]);
-
-  const total = useMemo(() => data.reduce((acc, d) => acc + (d.value || 0), 0), [data]);
 
   const slices = useMemo(() => {
     if (!total || !data.length) return [];
@@ -140,15 +129,9 @@ function DonutChart({ data, colors }) {
       const y4 = cy - rInner * Math.cos(startAngle);
 
       const largeArcFlag = sliceAngle > Math.PI ? 1 : 0;
-
       const pathData = `M ${x1} ${y1} A ${currentROuter} ${currentROuter} 0 ${largeArcFlag} 1 ${x2} ${y2} L ${x3} ${y3} A ${rInner} ${rInner} 0 ${largeArcFlag} 0 ${x4} ${y4} Z`;
 
-      return {
-        ...d,
-        color: colorList[i % colorList.length],
-        pathData,
-        index: i
-      };
+      return { ...d, color: colorList[i % colorList.length], pathData, index: i };
     });
   }, [data, colorList, total, activeSlice]);
 
@@ -159,24 +142,20 @@ function DonutChart({ data, colors }) {
       <svg width={width} height={height} className="overflow-visible">
         <g>
           {slices.map((slice) => (
-            <path
-              key={slice.index}
-              d={slice.pathData}
-              fill={slice.color}
-              stroke="#fafafa"
-              strokeWidth="3"
+            <path 
+              key={slice.index} 
+              d={slice.pathData} 
+              fill={slice.color} 
+              stroke="#fafafa" 
+              strokeWidth="2" 
               style={{ cursor: 'pointer', transition: 'all 0.2s ease' }}
               onMouseEnter={() => setActiveSlice(slice.index)}
               onMouseLeave={() => setActiveSlice(null)}
             />
           ))}
         </g>
-        <text x={cx} y={cy - 8} textAnchor="middle" className="font-khand font-bold uppercase" style={{ fontSize: '22px', fill: BRAND_COLORS.primary }}>
-          TOTAL
-        </text>
-        <text x={cx} y={cy + 22} textAnchor="middle" className="font-khand font-bold" style={{ fontSize: '24px', fill: BRAND_COLORS.primary }}>
-          {`${formatNumber(total)} RNS`}
-        </text>
+        <text x={cx} y={cy - 8} textAnchor="middle" className="font-khand font-bold uppercase" style={{ fontSize: '22px', fill: BRAND_COLORS.primary }}> TOTAL </text>
+        <text x={cx} y={cy + 22} textAnchor="middle" className="font-khand font-bold" style={{ fontSize: '24px', fill: BRAND_COLORS.primary }}> {`${formatNumber(total)} RNS`} </text>
       </svg>
 
       {hoveredData && (
@@ -199,12 +178,9 @@ function DonutChart({ data, colors }) {
       {/* Vertical Stacked Legend */}
       <div className="flex flex-col gap-2 mt-4 w-full px-4">
         {data.map((d, i) => (
-          <div key={i} className="flex items-center justify-between text-xs font-roboto font-medium text-slate-600 border-b border-slate-100 pb-1">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-none shrink-0" style={{ backgroundColor: colorList[i % colorList.length] }}></div>
-              <span className="uppercase text-xs font-bold font-khand pt-[2px] truncate max-w-[160px]">{d.name}</span>
-            </div>
-            <span className="font-bold text-slate-700">{formatNumber(d.value)} RNS</span>
+          <div key={i} className="flex items-center gap-2 text-xs font-roboto font-medium text-slate-600">
+            <div className="w-3.5 h-3.5 rounded-none shrink-0" style={{ backgroundColor: colorList[i % colorList.length] }}></div>
+            <span className="uppercase text-xs font-bold font-khand pt-[2px] truncate" style={{ color: BRAND_COLORS.primary }}>{d.name}</span>
           </div>
         ))}
       </div>
@@ -235,6 +211,58 @@ function PickupPatternChart({ leadDays, avgADR = 185, totalNights = 1200 }) {
   const totalCapacity = totalNights > 0 ? totalNights : 1250;
 
   const points = useMemo(() => {
+    // If dataset contains explicit pickup window data for SOURCE, map directly from dataset
+    if (datasetPickup && datasetPickup.length > 0) {
+      const pickupMap = {};
+      datasetPickup.forEach(p => {
+        pickupMap[p.d] = p;
+      });
+
+      return windowDays.map((d, idx) => {
+        const item = pickupMap[d] || {};
+        const rooms = item.rooms || 0;
+        const rev = item.revenue || 0;
+        // Calculated ADR from revenue / rooms
+        const adr = rooms > 0 ? rev / rooms : (item.adr || baseAdr);
+        const pct = Math.min(100, (rooms / (totalCapacity || 1)) * 100);
+
+        const px = paddingLeft + ((90 - d) / 90) * chartW;
+
+        let occChange = 0;
+        let roomsChange = 0;
+        let adrChange = 0;
+
+        if (idx > 0) {
+          const prevItem = pickupMap[windowDays[idx - 1]] || {};
+          const prevRooms = prevItem.rooms || 0;
+          const prevRev = prevItem.revenue || 0;
+          const prevAdr = prevRooms > 0 ? prevRev / prevRooms : (prevItem.adr || baseAdr);
+          const prevPct = Math.min(100, (prevRooms / (totalCapacity || 1)) * 100);
+
+          occChange = pct - prevPct;
+          roomsChange = rooms - prevRooms;
+          adrChange = adr - prevAdr;
+        }
+
+        return {
+          d,
+          pct,
+          rooms,
+          adr,
+          occChange,
+          roomsChange,
+          adrChange,
+          px,
+          pyOcc: paddingTop + chartH - (pct / 100) * chartH
+        };
+      });
+    }
+
+    // Fallback mathematical sigmoid pickup model when pickup_ breakout is loading/simulated
+    const x0 = leadDays || 15;
+    const k = 0.08;
+    const generatePickup = (d) => 100 / (1 + Math.exp(k * (d - x0)));
+
     return windowDays.map((d, idx) => {
       const pct = generatePickup(d);
       const px = paddingLeft + ((90 - d) / 90) * chartW;
@@ -420,32 +448,14 @@ function PickupPatternChart({ leadDays, avgADR = 185, totalNights = 1200 }) {
 
 function PaceComparisonChart({ data, selectedYear, roomsConfig = 188 }) {
   const [hoveredIndex, setHoveredIndex] = useState(null);
-
   if (!data || !data.length) return null;
-
-  const width = 600;
-  const height = 280;
-  const paddingLeft = 60;
-  const paddingBottom = 40;
-  const paddingTop = 20;
-  const paddingRight = 20;
-
-  const chartW = width - paddingLeft - paddingRight;
-  const chartH = height - paddingTop - paddingBottom;
-
+  const width = 600; const height = 280; const paddingLeft = 60; const paddingBottom = 40; const paddingTop = 20; const paddingRight = 20;
+  const chartW = width - paddingLeft - paddingRight; const 
+  chartH = height - paddingTop - paddingBottom;
   const maxVal = Math.max(...data.map(d => Math.max(d.ty || 0, d.stly || 0)), 100) * 1.15;
-
-  const groupWidth = chartW / data.length;
-  const barWidth = Math.max(8, (groupWidth * 0.35));
-
-  const tyYearLabel = selectedYear || "2026";
-  const stlyYearLabel = selectedYear ? String(Number(selectedYear) - 1) : "2025";
-
-  const DAYS_IN_MONTH = {
-    JAN: 31, FEB: 28, MAR: 31, APR: 30, MAY: 31, JUN: 30,
-    JUL: 31, AUG: 31, SEP: 30, OCT: 31, NOV: 30, DEC: 31
-  };
-
+  const groupWidth = chartW / data.length; const barWidth = Math.max(8, (groupWidth * 0.35));
+  const tyYearLabel = selectedYear || "2026"; const stlyYearLabel = selectedYear ? String(Number(selectedYear) - 1) : "2025";
+  const DAYS_IN_MONTH = { JAN: 31, FEB: 28, MAR: 31, APR: 30, MAY: 31, JUN: 30, JUL: 31, AUG: 31, SEP: 30, OCT: 31, NOV: 30, DEC: 31 };
   const activeItem = hoveredIndex !== null ? data[hoveredIndex] : null;
 
   let tooltipData = null;
@@ -453,34 +463,18 @@ function PaceComparisonChart({ data, selectedYear, roomsConfig = 188 }) {
     const monthKey = String(activeItem.month || '').substring(0, 3).toUpperCase();
     const days = DAYS_IN_MONTH[monthKey] || 30;
     const capacity = days * (roomsConfig || 188);
-
-    const tyRev = activeItem.ty || 0;
-    const stlyRev = activeItem.stly || 0;
-    const revChg = tyRev - stlyRev;
-
+    const tyRev = activeItem.ty || 0; const stlyRev = activeItem.stly || 0; const revChg = tyRev - stlyRev;
     const tyNights = activeItem.tyNights || (tyRev > 0 ? Math.round(tyRev / 185) : 0);
     const stlyNights = activeItem.stlyNights || (stlyRev > 0 ? Math.round(stlyRev / 175) : 0);
     const nightsChg = tyNights - stlyNights;
-
     const tyAdr = tyNights > 0 ? tyRev / tyNights : 0;
     const stlyAdr = stlyNights > 0 ? stlyRev / stlyNights : 0;
     const adrChg = tyAdr - stlyAdr;
-
     const tyOcc = capacity > 0 ? (tyNights / capacity) * 100 : 0;
     const stlyOcc = capacity > 0 ? (stlyNights / capacity) * 100 : 0;
     const occChg = tyOcc - stlyOcc;
-
     const groupX = paddingLeft + (hoveredIndex * groupWidth) + groupWidth / 2;
-    const posX = (groupX / width) * 100;
-
-    tooltipData = {
-      month: activeItem.month,
-      posX,
-      tyRev, revChg,
-      tyNights, nightsChg,
-      tyAdr, adrChg,
-      tyOcc, occChg
-    };
+    tooltipData = { month: activeItem.month, posX: (groupX / width) * 100, tyRev, revChg, tyNights, nightsChg, tyAdr, adrChg, tyOcc, occChg };
   }
 
   return (
@@ -488,172 +482,142 @@ function PaceComparisonChart({ data, selectedYear, roomsConfig = 188 }) {
       <div className="overflow-x-auto">
         <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto">
           {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
-            const val = maxVal * ratio;
-            const y = paddingTop + chartH - (ratio * chartH);
+            const val = maxVal * ratio; const y = paddingTop + chartH - (ratio * chartH);
             return (
               <g key={ratio}>
                 <line x1={paddingLeft} y1={y} x2={width - paddingRight} y2={y} stroke="#e2e8f0" strokeDasharray="3,3" />
-                <text x={paddingLeft - 8} y={y + 4} textAnchor="end" className="font-roboto" fontSize="10" fill="#64748b">
-                  {formatCompactUSD(val)}
-                </text>
+                <text x={paddingLeft - 8} y={y + 4} textAnchor="end" className="font-roboto" fontSize="10" fill="#64748b">{formatCompactUSD(val)}</text>
               </g>
             );
           })}
-
           {data.map((d, i) => {
             const groupX = paddingLeft + (i * groupWidth) + (groupWidth - (barWidth * 2 + 4)) / 2;
-            const tyH = (d.ty / maxVal) * chartH;
-            const stlyH = (d.stly / maxVal) * chartH;
-
-            const tyY = paddingTop + chartH - tyH;
-            const stlyY = paddingTop + chartH - stlyH;
+            const tyH = (d.ty / maxVal) * chartH; const stlyH = (d.stly / maxVal) * chartH;
+            const tyY = paddingTop + chartH - tyH; const stlyY = paddingTop + chartH - stlyH;
             const isHovered = hoveredIndex === i;
-
             return (
               <g key={d.month || i}>
-                <rect 
-                  x={groupX} 
-                  y={tyY} 
-                  width={barWidth} 
-                  height={tyH} 
-                  fill={BRAND_COLORS.teal} 
-                  opacity={isHovered ? 1 : 0.9} 
-                  stroke={isHovered ? BRAND_COLORS.primary : 'none'}
-                  strokeWidth="1"
-                />
-                <rect 
-                  x={groupX + barWidth + 4} 
-                  y={stlyY} 
-                  width={barWidth} 
-                  height={stlyH} 
-                  fill={BRAND_COLORS.aqua} 
-                  opacity={isHovered ? 1 : 0.85} 
-                  stroke={isHovered ? BRAND_COLORS.primary : 'none'}
-                  strokeWidth="1"
-                />
-                <text
-                  x={groupX + barWidth + 2}
-                  y={height - 12}
-                  textAnchor="middle"
-                  className="font-khand font-bold uppercase"
-                  fontSize="11"
-                  fill={BRAND_COLORS.primary}
-                >
-                  {String(d.month).substring(0, 3).toUpperCase()}
-                </text>
-
-                {/* Hit target rectangle for hover interactions */}
-                <rect
-                  x={paddingLeft + i * groupWidth}
-                  y={paddingTop}
-                  width={groupWidth}
-                  height={chartH + 20}
-                  fill="transparent"
-                  className="cursor-pointer"
-                  onMouseEnter={() => setHoveredIndex(i)}
-                  onMouseLeave={() => setHoveredIndex(null)}
-                />
+                <rect x={groupX} y={tyY} width={barWidth} height={tyH} fill={BRAND_COLORS.teal} opacity={isHovered ? 1 : 0.9} stroke={isHovered ? BRAND_COLORS.primary : 'none'} strokeWidth="1" />
+                <rect x={groupX + barWidth + 4} y={stlyY} width={barWidth} height={stlyH} fill={BRAND_COLORS.aqua} opacity={isHovered ? 1 : 0.85} stroke={isHovered ? BRAND_COLORS.primary : 'none'} strokeWidth="1" />
+                <text x={groupX + barWidth + 2} y={height - 12} textAnchor="middle" className="font-khand font-bold uppercase" fontSize="11" fill={BRAND_COLORS.primary}>{String(d.month).substring(0, 3).toUpperCase()}</text>
+                <rect x={paddingLeft + i * groupWidth} y={paddingTop} width={groupWidth} height={chartH + 20} fill="transparent" className="cursor-pointer" onMouseEnter={() => setHoveredIndex(i)} onMouseLeave={() => setHoveredIndex(null)} />
               </g>
             );
           })}
         </svg>
       </div>
-
-      {/* Hover Tooltip Overlay */}
       {tooltipData && (
-        <div
-          className="absolute z-30 bg-white/95 border-[2px] p-3 shadow-xl pointer-events-none rounded-none text-left min-w-[220px] transition-all duration-150"
-          style={{
-            borderColor: BRAND_COLORS.teal,
-            left: `${Math.min(Math.max(tooltipData.posX, 20), 75)}%`,
-            top: '10%'
-          }}
-        >
+        <div className="absolute z-30 bg-white/95 border-[2px] p-3 shadow-xl pointer-events-none rounded-none text-left min-w-[220px] transition-all duration-150" style={{ borderColor: BRAND_COLORS.teal, left: `${Math.min(Math.max(tooltipData.posX, 20), 75)}%`, top: '10%' }} >
           <p className="font-khand font-bold uppercase text-xs border-b border-slate-100 pb-1 mb-2 flex justify-between items-center" style={{ color: BRAND_COLORS.primary }}>
             <span>{tooltipData.month} PACING ({tyYearLabel})</span>
             <span className="text-[10px] px-1.5 py-0.5 bg-[#047C97] text-white">OTB VS STLY</span>
           </p>
-
           <div className="space-y-1.5 font-roboto text-xs">
             <div className="flex justify-between gap-3 items-center">
               <span className="text-slate-500 font-medium">Occupancy OTB:</span>
-              <div>
-                <strong style={{ color: BRAND_COLORS.primary }}>{tooltipData.tyOcc.toFixed(1)}%</strong>
-                <span className="ml-1 text-[11px] font-bold" style={{ color: tooltipData.occChg >= 0 ? BRAND_COLORS.cyan : BRAND_COLORS.red }}>
-                  ({tooltipData.occChg >= 0 ? `+${tooltipData.occChg.toFixed(1)}%` : `${tooltipData.occChg.toFixed(1)}%`})
-                </span>
-              </div>
+              <div><strong style={{ color: BRAND_COLORS.primary }}>{tooltipData.tyOcc.toFixed(1)}%</strong> <span className="ml-1 text-[11px] font-bold" style={{ color: tooltipData.occChg >= 0 ? BRAND_COLORS.cyan : BRAND_COLORS.red }}> ({tooltipData.occChg >= 0 ? `+${tooltipData.occChg.toFixed(1)}%` : `${tooltipData.occChg.toFixed(1)}%`}) </span></div>
             </div>
-
             <div className="flex justify-between gap-3 items-center">
               <span className="text-slate-500 font-medium">Rooms OTB:</span>
-              <div>
-                <strong style={{ color: BRAND_COLORS.primary }}>{formatNumber(tooltipData.tyNights)}</strong>
-                <span className="ml-1 text-[11px] font-bold" style={{ color: tooltipData.nightsChg >= 0 ? BRAND_COLORS.cyan : BRAND_COLORS.red }}>
-                  ({tooltipData.nightsChg >= 0 ? `+${formatNumber(tooltipData.nightsChg)}` : formatNumber(tooltipData.nightsChg)})
-                </span>
-              </div>
+              <div><strong style={{ color: BRAND_COLORS.primary }}>{formatNumber(tooltipData.tyNights)}</strong> <span className="ml-1 text-[11px] font-bold" style={{ color: tooltipData.nightsChg >= 0 ? BRAND_COLORS.cyan : BRAND_COLORS.red }}> ({tooltipData.nightsChg >= 0 ? `+${formatNumber(tooltipData.nightsChg)}` : formatNumber(tooltipData.nightsChg)}) </span></div>
             </div>
-
             <div className="flex justify-between gap-3 items-center">
               <span className="text-slate-500 font-medium">ADR OTB:</span>
-              <div>
-                <strong style={{ color: BRAND_COLORS.primary }}>{formatPreciseCurrency(tooltipData.tyAdr)}</strong>
-                <span className="ml-1 text-[11px] font-bold" style={{ color: tooltipData.adrChg >= 0 ? BRAND_COLORS.cyan : BRAND_COLORS.red }}>
-                  ({tooltipData.adrChg >= 0 ? `+${formatPreciseCurrency(tooltipData.adrChg)}` : `-${formatPreciseCurrency(Math.abs(tooltipData.adrChg))}`})
-                </span>
-              </div>
+              <div><strong style={{ color: BRAND_COLORS.primary }}>{formatPreciseCurrency(tooltipData.tyAdr)}</strong> <span className="ml-1 text-[11px] font-bold" style={{ color: tooltipData.adrChg >= 0 ? BRAND_COLORS.cyan : BRAND_COLORS.red }}> ({tooltipData.adrChg >= 0 ? `+${formatPreciseCurrency(tooltipData.adrChg)}` : `-${formatPreciseCurrency(Math.abs(tooltipData.adrChg))}`}) </span></div>
             </div>
-
             <div className="flex justify-between gap-3 items-center border-t pt-1 border-slate-100">
               <span className="text-slate-500 font-medium">Revenue OTB:</span>
-              <div>
-                <strong style={{ color: BRAND_COLORS.teal }}>{formatCurrency(tooltipData.tyRev)}</strong>
-                <span className="ml-1 text-[11px] font-bold" style={{ color: tooltipData.revChg >= 0 ? BRAND_COLORS.cyan : BRAND_COLORS.red }}>
-                  ({tooltipData.revChg >= 0 ? `+${formatCompactUSD(tooltipData.revChg)}` : `-${formatCompactUSD(Math.abs(tooltipData.revChg))}`})
-                </span>
-              </div>
+              <div><strong style={{ color: BRAND_COLORS.teal }}>{formatCurrency(tooltipData.tyRev)}</strong> <span className="ml-1 text-[11px] font-bold" style={{ color: tooltipData.revChg >= 0 ? BRAND_COLORS.cyan : BRAND_COLORS.red }}> ({tooltipData.revChg >= 0 ? `+${formatCompactUSD(tooltipData.revChg)}` : `-${formatCompactUSD(Math.abs(tooltipData.revChg))}`}) </span></div>
             </div>
           </div>
         </div>
       )}
 
       <div className="flex justify-center gap-6 mt-2">
-        <div className="flex items-center gap-2 text-xs font-khand font-bold uppercase">
-          <div className="w-3 h-3" style={{ backgroundColor: BRAND_COLORS.teal }}></div>
-          <span className="pt-[2px]">{tyYearLabel} OTB REVENUE</span>
-        </div>
-        <div className="flex items-center gap-2 text-xs font-khand font-bold uppercase">
-          <div className="w-3 h-3" style={{ backgroundColor: BRAND_COLORS.aqua }}></div>
-          <span className="pt-[2px]">{stlyYearLabel} STLY REVENUE</span>
-        </div>
+        <div className="flex items-center gap-2 text-xs font-khand font-bold uppercase"><div className="w-3 h-3" style={{ backgroundColor: BRAND_COLORS.teal }}></div><span className="pt-[2px]">{tyYearLabel} OTB REVENUE</span></div>
+        <div className="flex items-center gap-2 text-xs font-khand font-bold uppercase"><div className="w-3 h-3" style={{ backgroundColor: BRAND_COLORS.aqua }}></div><span className="pt-[2px]">{stlyYearLabel} STLY REVENUE</span></div>
       </div>
     </div>
   );
 }
 
-export default function App({ data = [] }) {
-  const [activeTab, setActiveTab] = useState('overview');
+function PickupPatternChart({ leadDays, avgADR = 185, totalNights = 1200 }) {
+  const [hoveredPoint, setHoveredPoint] = useState(null);
+  const [hoverType, setHoverType] = useState(null);
+  const width = 600; const height = 280; const paddingLeft = 45; const paddingRight = 55; const paddingBottom = 40; const paddingTop = 25;
+  const chartW = width - paddingLeft - paddingRight; const chartH = height - paddingTop - paddingBottom;
+  const x0 = leadDays || 15; const k = 0.08;
+  const generatePickup = (d) => 100 / (1 + Math.exp(k * (d - x0)));
+  const windowDays = [90, 75, 60, 45, 30, 21, 14, 7, 3, 0];
+  const baseAdr = avgADR > 0 ? avgADR : 185;
+  const totalCapacity = totalNights > 0 ? totalNights : 1250;
+  const points = useMemo(() => {
+    return windowDays.map((d, idx) => {
+      const pct = generatePickup(d); const px = paddingLeft + ((90 - d) / 90) * chartW;
+      const rooms = Math.round((pct / 100) * totalCapacity);
+      const adrMultiplier = 0.82 + (0.28 * Math.pow((90 - d) / 90, 0.85));
+      const adr = baseAdr * adrMultiplier;
+      let occChange = 0; let roomsChange = 0; let adrChange = 0;
+      if (idx > 0) {
+        const prevPct = generatePickup(windowDays[idx - 1]);
+        const prevRooms = Math.round((prevPct / 100) * totalCapacity);
+        const prevAdr = baseAdr * (0.82 + (0.28 * Math.pow((90 - windowDays[idx - 1]) / 90, 0.85)));
+        occChange = pct - prevPct; roomsChange = rooms - prevRooms; adrChange = adr - prevAdr;
+      }
+      return { d, pct, rooms, adr, occChange, roomsChange, adrChange, px, pyOcc: paddingTop + chartH - (pct / 100) * chartH };
+    });
+  }, [windowDays, chartW, chartH, baseAdr, totalCapacity, x0]);
+  const maxAdr = useMemo(() => Math.max(...points.map(p => p.adr), 100) * 1.15, [points]);
+  const pointsWithY = useMemo(() => points.map(p => ({ ...p, pyAdr: paddingTop + chartH - (p.adr / maxAdr) * chartH })), [points, chartH, maxAdr]);
+  const pathOccD = pointsWithY.reduce((acc, p, i) => `${acc} ${i === 0 ? 'M' : 'L'} ${p.px.toFixed(1)} ${p.pyOcc.toFixed(1)}`, '');
+  const pathAdrD = pointsWithY.reduce((acc, p, i) => `${acc} ${i === 0 ? 'M' : 'L'} ${p.px.toFixed(1)} ${p.pyAdr.toFixed(1)}`, '');
+
+  return (
+    <div className="w-full relative select-none">
+      <div className="overflow-x-auto">
+        <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto">
+          {[0, 25, 50, 75, 100].map((pct) => {
+            const y = paddingTop + chartH - (pct / 100) * chartH;
+            return (
+              <g key={pct}>
+                <line x1={paddingLeft} y1={y} x2={width - paddingRight} y2={y} stroke="#e2e8f0" strokeDasharray="3,3" />
+                <text x={paddingLeft - 6} y={y + 3} textAnchor="end" className="font-roboto font-bold" fontSize="9" fill={BRAND_COLORS.cyan}>{`${pct}%`}</text>
+              </g>
+            );
+          })}
+          {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+            const y = paddingTop + chartH - (ratio * chartH);
+            return <text key={ratio} x={width - paddingRight + 6} y={y + 3} textAnchor="start" className="font-roboto font-bold" fontSize="9" fill={BRAND_COLORS.orange}>{formatCompactUSD(maxAdr * ratio)}</text>;
+          })}
+          {[90, 60, 30, 0].map((d) => (
+            <text key={d} x={paddingLeft + ((90 - d) / 90) * chartW} y={height - 12} textAnchor="middle" className="font-khand font-bold" fontSize="10" fill={BRAND_COLORS.primary}>{`${d} DAYS OUT`}</text>
+          ))}
+          <path d={pathOccD} fill="none" stroke={BRAND_COLORS.cyan} strokeWidth="3.5" /><path d={pathAdrD} fill="none" stroke={BRAND_COLORS.orange} strokeWidth="3.5" strokeDasharray="5,2" />
+          {pointsWithY.map((p, idx) => (
+            <g key={idx}>
+              <circle cx={p.px} cy={p.pyOcc} r={hoveredPoint === idx && hoverType === 'occ' ? 7 : 4} fill={BRAND_COLORS.cyan} stroke="#FFFFFF" strokeWidth="2" className="cursor-pointer transition-all duration-150" onMouseEnter={() => { setHoveredPoint(idx); setHoverType('occ'); }} onMouseLeave={() => { setHoveredPoint(null); setHoverType(null); }} />
+              <circle cx={p.px} cy={p.pyAdr} r={hoveredPoint === idx && hoverType === 'adr' ? 7 : 4} fill={BRAND_COLORS.orange} stroke="#FFFFFF" strokeWidth="2" className="cursor-pointer transition-all duration-150" onMouseEnter={() => { setHoveredPoint(idx); setHoverType('adr'); }} onMouseLeave={() => { setHoveredPoint(null); setHoverType(null); }} />
+            </g>
+          ))}
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+function App({ data, updateItem, deleteItem, insertItem, moveItem, followLink }) {
   const [selectedMonth, setSelectedMonth] = useState('YTD');
-  const [selectedYear, setSelectedYear] = useState('');
+  const [selectedYear, setSelectedYear] = useState('2026');
+  const [activeTab, setActiveTab] = useState('overview');
   const [selectedPaceSource, setSelectedPaceSource] = useState('ALL');
+
   const [profileMetricType, setProfileMetricType] = useState('CHANNEL');
   const [selectedChannelProfile, setSelectedChannelProfile] = useState('ALL');
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
 
+  // Comprehensive Parsing
   const parsedData = useMemo(() => {
-    const result = {
-      rows: [],
-      years: [],
-      roomsConfig: 188,
-      propertyName: "REBEL HOTEL",
-      channelRows: [],
-      sourceRows: [],
-      subsourceRows: [],
-      paceRows: [],
-      headerMap: {}
-    };
-
+    const result = { records: [], paceRows: [], channelRows: [], sourceRows: [], subsourceRows: [], years: [], propertyName: "REBEL HOTEL", rooms: 188 };
     if (!data || !data.length) return result;
 
     // Row 1 (idx 0): Clean converted unique identifier headers from row 2 BigQuery export
@@ -671,10 +635,8 @@ export default function App({ data = [] }) {
     };
 
     const map = {
-      property: findCol("PROPERTY"),
-      rooms: findCol("ROOMS"),
-
-      // Channel columns
+      property: findCol("property"),
+      rooms: findCol("rooms"),
       channelYear: findCol("channel_year"),
       channelMonth: findCol("channel_stay_month"),
       channelMetric: findCol("channel_metric"),
@@ -685,8 +647,14 @@ export default function App({ data = [] }) {
       channelADR: findCol("channel_adr"),
       channelALOS: findCol("channel_alos"),
       channelLead: findCol("channel_lead_days"),
-
-      // Source columns
+      paceYear: findCol("pace_year"),
+      paceMonth: findCol("pace_stay_month"),
+      paceMetricType: findCol("pace_metric_type"),
+      paceMetric: findCol("pace_metric"),
+      paceTYRev: findCol("pace_ty_revenue"),
+      paceSTLYRev: findCol("pace_stly_revenue"),
+      paceTYNights: findCol("pace_ty_room_nights"),
+      paceSTLYNights: findCol("pace_stly_room_nights"),
       sourceYear: findColMulti(["source_year"]),
       sourceMonth: findColMulti(["source_stay_month"]),
       sourceMetric: findCol("source_metric"),
@@ -716,7 +684,16 @@ export default function App({ data = [] }) {
       paceTYRev: findCol("pace_ty_revenue"),
       paceSTLYRev: findCol("pace_stly_revenue"),
       paceTYNights: findCol("pace_ty_room_nights"),
-      paceSTLYNights: findCol("pace_stly_room_nights")
+      paceSTLYNights: findCol("pace_stly_room_nights"),
+
+      pickupYear: findCol("pickup_year"),
+      pickupMonth: findCol("pickup_stay_month"),
+      pickupBreakout: findCol("pickup_breakout"),
+      pickupMetric: findCol("pickup_metric"),
+      pickupDaysOut: findColMulti(["pickup_days_out", "pickup_lead_days", "pickup_lead_window", "pickup_window", "pickup_days"]),
+      pickupRooms: findColMulti(["pickup_rooms", "pickup_nights", "pickup_room_nights"]),
+      pickupRev: findColMulti(["pickup_revenue", "pickup_rev"]),
+      pickupADR: findColMulti(["pickup_adr"])
     };
     result.headerMap = map;
 
@@ -803,7 +780,6 @@ export default function App({ data = [] }) {
         });
       }
 
-      // Pace Rows Parsing with Type Casting (Strict CamelCase Schema)
       if (map.paceYear !== -1 && r[map.paceYear]) {
         const yr = Number(r[map.paceYear]);
         if (!isNaN(yr)) {
@@ -820,6 +796,26 @@ export default function App({ data = [] }) {
           });
         }
       }
+
+      // Parsing Pickup breakout dataset rows
+      if (map.pickupBreakout !== -1 && r[map.pickupBreakout]) {
+        const yr = map.pickupYear !== -1 && r[map.pickupYear] ? Number(r[map.pickupYear]) : 2026;
+        const rooms = map.pickupRooms !== -1 ? Number(r[map.pickupRooms]) || 0 : 0;
+        const rev = map.pickupRev !== -1 ? Number(r[map.pickupRev]) || 0 : 0;
+        const adrVal = map.pickupADR !== -1 ? Number(r[map.pickupADR]) || 0 : (rooms > 0 ? rev / rooms : 0);
+
+        result.pickupRows.push({
+          year: isNaN(yr) ? 2026 : yr,
+          stayMonth: map.pickupMonth !== -1 && r[map.pickupMonth] ? safeString(r[map.pickupMonth]).toUpperCase() : 'JAN',
+          month: map.pickupMonth !== -1 && r[map.pickupMonth] ? safeString(r[map.pickupMonth]).toUpperCase() : 'JAN',
+          breakout: safeString(r[map.pickupBreakout]),
+          metric: map.pickupMetric !== -1 ? safeString(r[map.pickupMetric]) : 'TOTAL',
+          daysOut: map.pickupDaysOut !== -1 ? Number(r[map.pickupDaysOut]) || 0 : 0,
+          rooms: rooms,
+          revenue: rev,
+          adr: adrVal
+        });
+      }
     });
 
     const yrSet = new Set(
@@ -827,6 +823,7 @@ export default function App({ data = [] }) {
         .concat(result.sourceRows.map(r => String(r.year)))
         .concat(result.subsourceRows.map(r => String(r.year)))
         .concat(result.paceRows.map(r => String(r.year)))
+        .concat(result.pickupRows.map(r => String(r.year)))
     );
 
     if (yrSet.size > 0) {
@@ -838,7 +835,7 @@ export default function App({ data = [] }) {
     return result;
   }, [data]);
 
-  const { years, roomsConfig, propertyName, channelRows, sourceRows, subsourceRows, paceRows } = parsedData;
+  const { years, roomsConfig, propertyName, channelRows, sourceRows, subsourceRows, paceRows, pickupRows } = parsedData;
 
   useEffect(() => {
     if (years.length > 0 && (!selectedYear || !years.includes(selectedYear))) {
@@ -848,7 +845,11 @@ export default function App({ data = [] }) {
 
   const activeMonthsList = useMemo(() => {
     if (selectedMonth === 'YEAR') return MONTH_ORDER;
-    if (selectedMonth === 'YTD') return MONTH_ORDER.slice(0, 7);
+    if (selectedMonth === 'YTD') {
+      const monthsInData = parsedData.records.filter(r => String(r.year) === selectedYear).map(r => r.month);
+      const latestIdx = MONTH_ORDER.reduce((max, m, i) => monthsInData.includes(m) ? Math.max(max, i) : max, 6);
+      return MONTH_ORDER.slice(0, latestIdx + 1);
+    }
     return [selectedMonth];
   }, [selectedMonth]);
 
@@ -943,12 +944,59 @@ export default function App({ data = [] }) {
     }).sort((a, b) => b.value - a.value);
   }, [channelOnlyData, selectedYear, activeMonthsList, years]);
 
-  const stayProfilesMetrics = useMemo(() => {
-    let activeSet = channelRows;
-    if (profileMetricType === 'SOURCE') activeSet = sourceRows.length > 0 ? sourceRows : channelRows;
-    if (profileMetricType === 'SUBSOURCE') activeSet = subsourceRows.length > 0 ? subsourceRows : channelRows;
-
+  const datasetPickupVelocity = useMemo(() => {
     const yrNum = Number(selectedYear) || 2026;
+    const baseRows = pickupRows.filter(r => 
+      (r.year === yrNum || !r.year) && 
+      activeMonthsList.includes(r.month) &&
+      safeString(r.breakout).toUpperCase() === 'SOURCE'
+    );
+
+    if (!baseRows.length) return null;
+
+    let matched = [];
+    if (selectedPaceSource !== 'ALL') {
+      matched = baseRows.filter(r => safeString(r.metric).toUpperCase() === selectedPaceSource.toUpperCase());
+    } else {
+      const totalRows = baseRows.filter(r => safeString(r.metric).toUpperCase() === 'TOTAL');
+      if (totalRows.length > 0) {
+        matched = totalRows;
+      } else {
+        matched = baseRows;
+      }
+    }
+
+    const daysMap = {};
+    matched.forEach(r => {
+      const d = Number(r.daysOut);
+      if (isNaN(d)) return;
+      if (!daysMap[d]) daysMap[d] = { d, rooms: 0, revenue: 0 };
+      daysMap[d].rooms += r.rooms || 0;
+      daysMap[d].revenue += r.revenue || 0;
+    });
+
+    const windowDays = [90, 75, 60, 45, 30, 21, 14, 7, 3, 0];
+    const result = windowDays.map(d => {
+      const item = daysMap[d] || { rooms: 0, revenue: 0 };
+      // Calculated ADR from revenue and rooms columns
+      const adr = item.rooms > 0 ? item.revenue / item.rooms : 0;
+      return {
+        d,
+        rooms: item.rooms,
+        revenue: item.revenue,
+        adr
+      };
+    });
+
+    return result.some(item => item.rooms > 0 || item.revenue > 0) ? result : null;
+  }, [pickupRows, selectedYear, activeMonthsList, selectedPaceSource]);
+
+  const stayProfilesMetrics = useMemo(() => {
+    let activeSet = parsedData.channelRows;
+    if (profileMetricType === 'SOURCE') activeSet = parsedData.sourceRows.length > 0 ? parsedData.sourceRows : parsedData.channelRows;
+    if (profileMetricType === 'SUBSOURCE') activeSet = parsedData.subsourceRows.length > 0 ? parsedData.subsourceRows : parsedData.channelRows;
+
+    const yrNum = Number(selectedYear);
     let filtered = activeSet.filter(d => (d.year === yrNum || !d.year) && activeMonthsList.includes(d.month));
 
     const isAll = !selectedChannelProfile || selectedChannelProfile.toUpperCase().startsWith('ALL');
@@ -961,9 +1009,8 @@ export default function App({ data = [] }) {
     const leadSum = filtered.reduce((sum, d) => sum + (d.lead || 0), 0);
     const leadCount = filtered.filter(d => (d.lead || 0) > 0).length || filtered.length;
 
-    let targetALOS = (totalRes > 0 && isFinite(totalNights / totalRes)) ? totalNights / totalRes : (kpiStats.avgALOS || 2.5);
-    let targetLead = (leadCount > 0 && isFinite(leadSum / leadCount)) ? leadSum / leadCount : (kpiStats.avgLead || 15);
-
+    let targetALOS = (totalRes > 0 && isFinite(totalNights / totalRes)) ? totalNights / totalRes : 2.5;
+    let targetLead = (leadCount > 0 && isFinite(leadSum / leadCount)) ? leadSum / leadCount : 15;
     if (!isFinite(targetALOS) || isNaN(targetALOS) || targetALOS <= 0) targetALOS = 2.5;
     if (!isFinite(targetLead) || isNaN(targetLead) || targetLead <= 0) targetLead = 15;
 
@@ -974,13 +1021,8 @@ export default function App({ data = [] }) {
       return (Math.pow(safeLambda, k) * Math.exp(-safeLambda)) / factorial(k);
     };
 
-    if (!hasStays && !isAll) {
-      return {
-        stayNights: [0, 0, 0, 0, 0, 0, 0],
-        leadTimes: [0, 0, 0, 0, 0, 0, 0],
-        hasData: false
-      };
-    }
+    const hasStays = filtered.length > 0 && (totalNights > 0 || totalRes > 0);
+    if (!hasStays && !isAll) return { stayNights: [0, 0, 0, 0, 0, 0, 0], leadTimes: [0, 0, 0, 0, 0, 0, 0], hasData: false };
 
     const rawStay = Array.from({ length: 7 }, (_, i) => poisson(Math.max(0.5, targetALOS - 0.5), i + 1));
     const sumStay = rawStay.reduce((a, b) => a + b, 0) || 1;
@@ -990,12 +1032,8 @@ export default function App({ data = [] }) {
     const sumLead = rawLead.reduce((a, b) => a + b, 0) || 1;
     const leadTimePct = rawLead.map(v => Math.round((v / sumLead) * 100));
 
-    return {
-      stayNights: stayNightsPct,
-      leadTimes: leadTimePct,
-      hasData: true
-    };
-  }, [channelRows, sourceRows, subsourceRows, profileMetricType, selectedChannelProfile, selectedYear, activeMonthsList, kpiStats]);
+    return { stayNights: stayNightsPct, leadTimes: leadTimePct, hasData: true };
+  }, [parsedData, profileMetricType, selectedChannelProfile, selectedYear, activeMonthsList]);
 
   const filteredPaceRows = useMemo(() => {
     const yrNum = Number(selectedYear) || 2026;
@@ -1043,10 +1081,10 @@ export default function App({ data = [] }) {
 
   const scopeTitle = selectedMonth === 'YEAR' ? 'FULL YEAR' : (selectedMonth === 'YTD' ? 'YTD' : selectedMonth);
   const sourceScopeLabel = selectedPaceSource !== 'ALL' ? ` | ${selectedPaceSource}` : '';
-  const periodLabel = `${selectedYear || '2026'} ${scopeTitle}${sourceScopeLabel}`;
+  const periodLabel = `${selectedYear} ${selectedMonth === 'YEAR' ? 'FULL YEAR' : (selectedMonth === 'YTD' ? 'YTD' : selectedMonth)}`;
 
   return (
-    <div className="min-h-screen font-roboto select-none" style={{ backgroundColor: BRAND_COLORS.frost, color: BRAND_COLORS.primary }}>
+    <div className="min-h-screen font-roboto select-none flex flex-col" style={{ backgroundColor: BRAND_COLORS.frost, color: BRAND_COLORS.primary }}>
       <style dangerouslySetInnerHTML={{ __html: fontStyles }} />
 
       {/* Header Block */}
@@ -1076,15 +1114,10 @@ export default function App({ data = [] }) {
               <div className="flex items-center gap-3">
 
                 {/* Pickup & Pace Tab Specific Source Filter */}
-                {(activeTab === 'pickup & pace' || activeTab === 'pace_pickup') && (
+                {activeTab === 'pickup_pace' && (
                   <div className="flex items-center p-1.5 rounded-none border shadow-sm" style={{ backgroundColor: BRAND_COLORS.frost, borderColor: `${BRAND_COLORS.primary}33` }}>
-                    <IconFilter size={14} className="ml-2" style={{ color: BRAND_COLORS.cyan }} />
-                    <select
-                      value={selectedPaceSource}
-                      onChange={(e) => setSelectedPaceSource(e.target.value)}
-                      className="bg-transparent border-none text-xs font-bold focus:ring-0 py-1 pl-2 pr-8 cursor-pointer font-khand uppercase tracking-wider"
-                      style={{ color: BRAND_COLORS.primary }}
-                    >
+                    <Filter size={14} className="ml-2" style={{ color: BRAND_COLORS.cyan }} />
+                    <select value={selectedPaceSource} onChange={(e) => setSelectedPaceSource(e.target.value)} className="bg-transparent border-none text-xs font-bold focus:ring-0 py-1 pl-2 pr-8 cursor-pointer font-khand uppercase tracking-wider outline-none appearance-none" style={{ color: BRAND_COLORS.primary }} >
                       <option value="ALL">ALL SOURCES</option>
                       {paceSourcesList.map(s => (
                         <option key={s} value={s}>{s.toUpperCase()}</option>
@@ -1095,13 +1128,8 @@ export default function App({ data = [] }) {
 
                 {/* Month View Filter */}
                 <div className="flex items-center p-1.5 rounded-none border shadow-sm" style={{ backgroundColor: BRAND_COLORS.frost, borderColor: `${BRAND_COLORS.primary}33` }}>
-                  <IconFilter size={14} className="ml-2" style={{ color: BRAND_COLORS.cyan }} />
-                  <select
-                    value={selectedMonth}
-                    onChange={(e) => setSelectedMonth(e.target.value)}
-                    className="bg-transparent border-none text-xs font-bold focus:ring-0 py-1 pl-2 pr-8 cursor-pointer font-khand uppercase tracking-wider"
-                    style={{ color: BRAND_COLORS.primary }}
-                  >
+                  <Filter size={14} className="ml-2" style={{ color: BRAND_COLORS.cyan }} />
+                  <select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="bg-transparent border-none text-xs font-bold focus:ring-0 py-1 pl-2 pr-8 cursor-pointer font-khand uppercase tracking-wider outline-none appearance-none" style={{ color: BRAND_COLORS.primary }} >
                     <option value="YEAR">FULL YEAR</option>
                     <option value="YTD">YTD VIEW</option>
                     {MONTH_ORDER.map(m => <option key={m} value={m}>{m} VIEW</option>)}
@@ -1110,14 +1138,9 @@ export default function App({ data = [] }) {
 
                 {/* Year Filter */}
                 <div className="flex items-center p-1.5 rounded-none border shadow-sm" style={{ backgroundColor: BRAND_COLORS.frost, borderColor: `${BRAND_COLORS.primary}33` }}>
-                  <select
-                    value={selectedYear}
-                    onChange={(e) => setSelectedYear(e.target.value)}
-                    className="bg-transparent border-none text-xs font-bold focus:ring-0 py-1 pl-2 pr-8 cursor-pointer font-khand uppercase tracking-wider"
-                    style={{ color: BRAND_COLORS.primary }}
-                  >
-                    {years.length > 0 ? (
-                      years.map(y => <option key={y} value={y}>{y}</option>)
+                  <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="bg-transparent border-none text-xs font-bold focus:ring-0 py-1 pl-2 pr-8 cursor-pointer font-khand uppercase tracking-wider outline-none appearance-none" style={{ color: BRAND_COLORS.primary }} >
+                    {parsedData.years.length > 0 ? (
+                      parsedData.years.map(y => <option key={y} value={y}>{y}</option>)
                     ) : (
                       <option value="2026">2026</option>
                     )}
@@ -1130,11 +1153,11 @@ export default function App({ data = [] }) {
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-2 border-t pt-4" style={{ borderColor: `${BRAND_COLORS.primary}1A` }}>
               <div>
                 <h1 className="text-3xl sm:text-4xl font-khand font-bold uppercase tracking-wide leading-none pt-[2px]" style={{ color: BRAND_COLORS.primary }}>
-                  METRIC SOURCES | {propertyName || "HOTEL DASHBOARD"}
+                  METRIC SOURCES | {parsedData.propertyName}
                 </h1>
               </div>
               <div className="text-xl sm:text-2xl font-khand font-bold uppercase tracking-wider opacity-60 pt-[2px]" style={{ color: BRAND_COLORS.primary }}>
-                {roomsConfig ? `${roomsConfig} ROOMS` : "188 ROOMS"}
+                {parsedData.rooms} ROOMS
               </div>
             </div>
 
@@ -1405,7 +1428,12 @@ export default function App({ data = [] }) {
                 <h3 className="font-khand uppercase font-bold tracking-wider text-xl mb-4 pt-[2px]">
                   Booking Window Pickup Velocity
                 </h3>
-                <PickupPatternChart leadDays={kpiStats.avgLead} avgADR={kpiStats.avgADR} totalNights={kpiStats.totalNights} />
+                <PickupPatternChart 
+                  leadDays={kpiStats.avgLead} 
+                  avgADR={kpiStats.avgADR} 
+                  totalNights={kpiStats.totalNights} 
+                  datasetPickup={datasetPickupVelocity}
+                />
               </div>
             </div>
 

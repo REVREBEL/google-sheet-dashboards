@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   TrendingUp, 
   Clock, 
@@ -26,7 +26,8 @@ const BRAND_COLORS = {
 };
 
 const fontStyles = `
-  @import url('https://fonts.googleapis.com/css2?family=Khand:wght@600;700&family=Roboto:wght@400;500;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Inconsolata:wght@700;800;900&family=Khand:wght@600;700&family=Roboto:wght@400;500;700&display=swap');
+  .font-inconsolata { font-family: 'Inconsolata', monospace; font-variation-settings: "wdth" 87.5; }
   .font-khand { font-family: 'Khand', sans-serif; }
   .font-roboto { font-family: 'Roboto', sans-serif; }
   .group:hover .group-hover-text-dynamic {
@@ -57,6 +58,20 @@ const formatCompact = (val) =>
 const formatCompactUSD = (val) => 
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 0 }).format(val || 0);
 
+const formatWholeCompact = (val) => {
+  const absVal = Math.abs(val);
+  const kVal = Math.round(absVal / 1000);
+  return `${kVal}K`;
+};
+
+const formatVar = (val, isCurrency = false, isPrecise = false) => {
+  const absVal = Math.abs(val);
+  let formatted = isCurrency 
+    ? (isPrecise ? formatPreciseCurrency(absVal) : formatCurrency(absVal)) 
+    : formatNumber(absVal);
+  return val < 0 ? `(${formatted})` : formatted;
+};
+
 export default function App({ data = [] }) {
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedYear, setSelectedYear] = useState('2026');
@@ -65,6 +80,9 @@ export default function App({ data = [] }) {
 
   const [dowSegmentFilter, setDowSegmentFilter] = useState('TOTAL');
   const [dowMonthFilter, setDowMonthFilter] = useState('YEAR');
+
+  const [planMode, setPlanMode] = useState('budget');
+  const [hoveredPlanMonth, setHoveredPlanMonth] = useState(null);
 
   const parsedData = useMemo(() => {
     const result = {
@@ -83,10 +101,6 @@ export default function App({ data = [] }) {
     if (!data || !Array.isArray(data) || data.length === 0) {
       return result;
     }
-
-    // Row 1 (idx 0): Clean converted unique identifier headers
-    // Row 2 (idx 1): Original raw BigQuery header row (EXPLICITLY BYPASSED)
-    // Row 3+ (idx >= 2): Primary data payload rows
 
     const headerRowIdx = 0;
     const headers = data[headerRowIdx]?.row || [];
@@ -147,7 +161,6 @@ export default function App({ data = [] }) {
     }
 
     data.forEach((item, idx) => {
-      /* EXPLICIT BYPASS: Skip Row 1 (headers, idx 0) AND Row 2 (BigQuery raw header export row, idx 1) */
       if (idx <= 1) return;
       const r = item.row;
       if (!r) return;
@@ -452,6 +465,28 @@ export default function App({ data = [] }) {
       .sort((a, b) => b.revenue - a.revenue);
   }, [rows, selectedYear, activeMonthsList]);
 
+  const planChartData = useMemo(() => {
+    return [
+      { month: 'JAN', isPassed: true, isAbove: true, targetRev: 450000, actualRev: 470000, stlyRev: 450000, targetRooms: 4000, actualNights: 4100, targetADR: 112.5, actualADR: 114.6 },
+      { month: 'FEB', isPassed: true, isAbove: false, targetRev: 550000, actualRev: 500000, stlyRev: 510000, targetRooms: 4800, actualNights: 4400, targetADR: 114.5, actualADR: 113.6 },
+      { month: 'MAR', isPassed: true, isAbove: false, targetRev: 550000, actualRev: 515000, stlyRev: 520000, targetRooms: 4800, actualNights: 4500, targetADR: 114.5, actualADR: 114.4 },
+      { month: 'APR', isPassed: true, isAbove: true, targetRev: 510000, actualRev: 530000, stlyRev: 490000, targetRooms: 4500, actualNights: 4600, targetADR: 113.3, actualADR: 115.2 },
+      { month: 'MAY', isPassed: true, isAbove: true, targetRev: 510000, actualRev: 526000, stlyRev: 500000, targetRooms: 4500, actualNights: 4650, targetADR: 113.3, actualADR: 113.1 },
+      
+      { month: 'JUN', isPassed: false, isAbove: false, targetRev: 605000, otbRev: 415000, stlyRev: 510000, targetRooms: 5200, otbNights: 3800, targetADR: 116.3, otbADR: 109.2, stlyNights: 4600, stlyADR: 110.8 },
+      { month: 'JUL', isPassed: false, isAbove: false, targetRev: 610000, otbRev: 485000, stlyRev: 540000, targetRooms: 5300, otbNights: 4300, targetADR: 115.0, otbADR: 112.7, stlyNights: 4800, stlyADR: 112.5 },
+      { month: 'AUG', isPassed: false, isAbove: true, targetRev: 610000, otbRev: 645000, stlyRev: 550000, targetRooms: 5300, otbNights: 5600, targetADR: 115.0, otbADR: 115.1, stlyNights: 4900, stlyADR: 112.2 },
+      { month: 'SEP', isPassed: false, isAbove: true, targetRev: 580000, otbRev: 620000, stlyRev: 520000, targetRooms: 5000, otbNights: 5300, targetADR: 116.0, otbADR: 116.9, stlyNights: 4600, stlyADR: 113.0 },
+      { month: 'OCT', isPassed: false, isAbove: true, targetRev: 530000, otbRev: 560000, stlyRev: 475000, targetRooms: 4600, otbNights: 4800, targetADR: 115.2, otbADR: 116.6, stlyNights: 4200, stlyADR: 113.0 },
+      { month: 'NOV', isPassed: false, isAbove: true, targetRev: 475000, otbRev: 490000, stlyRev: 425000, targetRooms: 4200, otbNights: 4300, targetADR: 113.0, otbADR: 113.9, stlyNights: 3800, stlyADR: 111.8 },
+      { month: 'DEC', isPassed: false, isAbove: false, targetRev: 450000, otbRev: 400000, stlyRev: 410000, targetRooms: 4000, otbNights: 3600, targetADR: 112.5, otbADR: 111.1, stlyNights: 3700, stlyADR: 110.8 }
+    ].map(d => ({
+      ...d,
+      varToTarget: d.isPassed ? (d.actualRev - d.targetRev) : (d.otbRev - d.targetRev),
+      varToSTLY: d.isPassed ? 0 : (d.otbRev - d.stlyRev)
+    }));
+  }, [planMode]);
+
   const scopeTitle = selectedMonth === 'YEAR' ? 'FULL YEAR' : (selectedMonth === 'YTD' ? 'YTD' : selectedMonth);
   const periodLabel = `${selectedYear || '---'} ${scopeTitle}`;
   const showSegmentFilter = (activeTab === 'trends' || activeTab === 'pickup & pace' || activeTab === 'pace');
@@ -535,12 +570,13 @@ export default function App({ data = [] }) {
               </div>
             </div>
 
-            <div className="inline-flex border-[2px] p-1 bg-white" style={{ borderColor: BRAND_COLORS.primary }}>
+            <div className="inline-flex border-[2px] p-1 bg-white flex-wrap" style={{ borderColor: BRAND_COLORS.primary }}>
               {[
                 { id: 'overview', label: 'overview' },
                 { id: 'trends', label: 'monthly trends' },
                 { id: 'segments', label: 'segment analysis' },
-                { id: 'pickup & pace', label: 'pickup & pace' }
+                { id: 'pickup & pace', label: 'pickup & pace' },
+                { id: 'performance_to_plan', label: 'performance to plan' }
               ].map(({ id, label }) => (
                 <button
                   key={id}
@@ -567,7 +603,7 @@ export default function App({ data = [] }) {
 
         {/* OVERVIEW TAB */}
         {activeTab === 'overview' && (
-          <div className="space-y-8 animate-in fade-in duration-500">
+          <div className="space-y-3 animate-in fade-in duration-500">
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 w-full select-none">
               <KPICard 
@@ -623,7 +659,7 @@ export default function App({ data = [] }) {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
               <div className="lg:col-span-7">
                 <DayOfWeekOccupancy 
                   selectedYear={selectedYear}
@@ -647,8 +683,8 @@ export default function App({ data = [] }) {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-[3px] border-[3px] w-full shadow-md rounded-none" style={{ backgroundColor: BRAND_COLORS.primary, borderColor: BRAND_COLORS.primary }}>
-              <div className="lg:col-span-2 bg-[#fafafa]">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 w-full">
+              <div className="lg:col-span-2 bg-[#fafafa] border-[3px] shadow-md rounded-none" style={{ borderColor: BRAND_COLORS.primary }}>
                 <div className="p-6 border-b-[3px] bg-[#fafafa] flex justify-between items-center" style={{ borderColor: BRAND_COLORS.primary }}>
                   <h3 className="font-khand uppercase font-bold tracking-wider text-lg">Performance Summary</h3>
                   <div className="text-xs font-bold text-white px-3 pt-[6px] pb-1 uppercase tracking-widest rounded-none font-khand" style={{ backgroundColor: BRAND_COLORS.cyan }}>{selectedYear} {scopeTitle}</div>
@@ -685,7 +721,7 @@ export default function App({ data = [] }) {
                 </div>
               </div>
 
-              <div className="bg-[#fafafa] p-8 flex flex-col h-full border-l-[3px] lg:border-l-0" style={{ borderColor: BRAND_COLORS.primary }}>
+              <div className="bg-[#fafafa] p-8 flex flex-col h-full border-[3px] shadow-md rounded-none" style={{ borderColor: BRAND_COLORS.primary }}>
                 <h3 className="font-khand uppercase font-bold tracking-widest text-lg mb-8">Segment Revenue Mix</h3>
                 <div className="space-y-6 flex-1">
                   {aggregatedSegments.slice(0, 7).map((s, i) => (
@@ -727,8 +763,8 @@ export default function App({ data = [] }) {
 
         {/* MONTHLY TRENDS TAB */}
         {activeTab === 'trends' && (
-          <div className="space-y-8 animate-in fade-in duration-500">
-            <div className="bg-[#fafafa] border-[3px] p-8 md:p-10 w-full flex flex-col md:flex-row md:justify-between md:items-center gap-8 shadow-sm rounded-none" style={{ borderColor: BRAND_COLORS.primary }}>
+          <div className="space-y-3 animate-in fade-in duration-500">
+            <div className="bg-[#fafafa] border-[3px] p-8 md:p-10 w-full flex flex-col md:flex-row md:justify-between md:items-center gap-3 shadow-sm rounded-none" style={{ borderColor: BRAND_COLORS.primary }}>
               <div className="flex-1 space-y-6">
                 <div className="flex items-center gap-3">
                   <h2 className="text-5xl md:text-6xl font-khand font-bold uppercase tracking-tight leading-none" style={{ color: BRAND_COLORS.primary }}>{scopeTitle}</h2>
@@ -752,12 +788,12 @@ export default function App({ data = [] }) {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-[3px] border-[3px] w-full shadow-md rounded-none" style={{ backgroundColor: BRAND_COLORS.primary, borderColor: BRAND_COLORS.primary }}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full">
               <PacingCard title="Budget" actual={stats.totalRev} target={planningStats.budget} variances={targetVariances.budget} />
               <PacingCard title="Forecast" actual={stats.totalRev} target={planningStats.forecast} variances={targetVariances.forecast} />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
               <BarChart data={monthlyTotals} xKey="month" yKey="adr" label={`Average Daily Rate (ADR) Progression ${selectedSegment !== 'ALL' ? `(${selectedSegment})` : ''}`} format="adr" color={BRAND_COLORS.cyan} />
               <BarChart data={monthlyTotals} xKey="month" yKey="nights" label={`Rooms Sold Progression ${selectedSegment !== 'ALL' ? `(${selectedSegment})` : ''}`} format="number" color={BRAND_COLORS.primary} />
             </div>
@@ -766,7 +802,7 @@ export default function App({ data = [] }) {
 
         {/* SEGMENT ANALYSIS TAB */}
         {activeTab === 'segments' && (
-          <div className="space-y-8 animate-in fade-in duration-500">
+          <div className="space-y-3 animate-in fade-in duration-500">
              <div className="bg-[#fafafa] border-[3px] p-8 shadow-sm rounded-none" style={{ borderColor: BRAND_COLORS.primary }}>
                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
                  <div>
@@ -827,7 +863,7 @@ export default function App({ data = [] }) {
 
         {/* PICKUP & PACE TAB */}
         {(activeTab === 'pickup & pace' || activeTab === 'pace') && (
-          <div className="space-y-8 animate-in fade-in duration-500">
+          <div className="space-y-3 animate-in fade-in duration-500">
             
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 w-full">
               
@@ -910,7 +946,7 @@ export default function App({ data = [] }) {
 
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
               <div className="p-8 border-[3px] rounded-none" style={{ backgroundColor: BRAND_COLORS.white, borderColor: BRAND_COLORS.primary }}>
                 <h3 className="font-khand uppercase font-bold tracking-wider text-xl mb-4" style={{ color: BRAND_COLORS.primary }}>
                   Revenue OTB Pace ({selectedYear || '2026'} vs. {selectedYear ? Number(selectedYear) - 1 : '2025'}) {selectedSegment !== 'ALL' ? `- ${selectedSegment}` : ''}
@@ -982,6 +1018,320 @@ export default function App({ data = [] }) {
               </div>
             </div>
 
+          </div>
+        )}
+
+        {/* PERFORMANCE TO PLAN TAB */}
+        {activeTab === 'performance_to_plan' && (
+          <div className="space-y-3 animate-in fade-in duration-500 w-full">
+            <div className="bg-white border-[3px] p-6 sm:p-8 w-full relative shadow-sm rounded-none" style={{ borderColor: BRAND_COLORS.primary }}>
+              
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-6 mb-8 border-b-[3px] gap-4" style={{ borderColor: BRAND_COLORS.primary }}>
+                <div>
+                  <h2 className="text-3xl font-khand font-bold uppercase tracking-wider pt-[2px]" style={{ color: BRAND_COLORS.primary }}>
+                    PERFORMANCE TO PLAN
+                  </h2>
+                  <p className="text-xs font-roboto font-medium tracking-wide uppercase" style={{ color: `${BRAND_COLORS.primary}99` }}>
+                    MONTHLY ACTUAL & OTB PACING VS {planMode.toUpperCase()} & STLY
+                  </p>
+                </div>
+
+                <div className="relative border-[2px] bg-white p-0.5 shadow-sm" style={{ borderColor: BRAND_COLORS.primary }}>
+                  <select
+                    value={planMode}
+                    onChange={(e) => setPlanMode(e.target.value)}
+                    className="bg-transparent border-none text-xs font-khand font-bold uppercase py-1.5 pl-3 pr-8 cursor-pointer focus:ring-0 outline-none"
+                    style={{ color: BRAND_COLORS.primary }}
+                  >
+                    <option value="budget">BUDGET vs OTB</option>
+                    <option value="forecast">FORECAST vs OTB</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Chart Body */}
+              <div className="relative w-full overflow-visible select-none pt-24 pb-12 group">
+                {(() => {
+                  const baseLineY = 400;
+                  const topLineY = 120;
+
+                  const allRevs = planChartData.flatMap(d => [d.targetRev, d.actualRev, d.otbRev, d.stlyRev]).filter(v => v > 0);
+                  
+                  const minDataVal = allRevs.length > 0 ? Math.min(...allRevs) : 425000;
+                  const maxDataVal = allRevs.length > 0 ? Math.max(...allRevs) : 625000;
+
+                  const yAxisMin = Math.max(0, Math.floor((minDataVal - 25000) / 25000) * 25000);
+                  const yAxisMax = Math.ceil((maxDataVal + 25000) / 25000) * 25000;
+
+                  const getY = (val) => baseLineY - Math.max(0, (val - yAxisMin) / (yAxisMax - yAxisMin)) * (baseLineY - topLineY);
+
+                  const step = Math.max(25000, Math.round((yAxisMax - yAxisMin) / 8 / 25000) * 25000);
+                  const gridLines = [];
+                  for (let v = yAxisMin; v <= yAxisMax; v += step) {
+                    gridLines.push(v);
+                  }
+
+                  return (
+                    <svg viewBox="0 0 1000 520" className="w-full h-auto min-w-[850px] overflow-visible">
+                      {/* Grid Lines */}
+                      {gridLines.map((val) => {
+                        const y = getY(val);
+                        return (
+                          <g key={val}>
+                            <line x1={60} x2={980} y1={y} y2={y} stroke={`${BRAND_COLORS.primary}1A`} strokeWidth="1" strokeDasharray="3,3" />
+                            <text x={50} y={y + 4} textAnchor="end" className="font-khand font-semibold" fontSize="12" fill={`${BRAND_COLORS.primary}B3`}>
+                              {`${Math.round(val / 1000)}k`}
+                            </text>
+                          </g>
+                        );
+                      })}
+                      <text x={50} y={getY(yAxisMax) - 24} textAnchor="end" className="font-khand font-bold uppercase" fontSize="12" fill={BRAND_COLORS.primary}> REV </text>
+
+                      {/* Main Bar Render Loop */}
+                      {planChartData.map((d) => {
+                        const colWidth = 62;
+                        const idx = MONTH_ORDER.indexOf(d.month);
+                        const groupX = 80 + idx * 75;
+
+                        const targetVal = d.targetRev || 500000;
+                        const actualOrOtbVal = d.isPassed ? (d.actualRev || 0) : (d.otbRev || 0);
+
+                        const splitVal = Math.min(targetVal, actualOrOtbVal);
+                        const topVal = Math.max(targetVal, actualOrOtbVal);
+
+                        const baseY = getY(yAxisMin);
+                        const splitY = getY(Math.max(yAxisMin, splitVal));
+                        const topY = getY(Math.max(yAxisMin, topVal));
+                        const stlyY = getY(Math.max(yAxisMin, d.stlyRev || 450000));
+
+                        const bottomBlockHeight = Math.max(0, baseY - splitY);
+                        const topBlockHeight = Math.max(0, splitY - topY);
+
+                        let baseColor, topColor, topSubLabelLine1, topLabelColor;
+                        let badgeBgColor, badgeTextColor;
+
+                        if (d.isPassed) {
+                          if (d.isAbove) {
+                            baseColor = BRAND_COLORS.aqua; topColor = BRAND_COLORS.cyan;
+                            topLabelColor = BRAND_COLORS.cyan; topSubLabelLine1 = "ABOVE";
+                            badgeBgColor = BRAND_COLORS.cyan; badgeTextColor = BRAND_COLORS.yellow;
+                          } else {
+                            baseColor = BRAND_COLORS.purple; topColor = BRAND_COLORS.orange;
+                            topLabelColor = BRAND_COLORS.orange; topSubLabelLine1 = "BELOW";
+                            badgeBgColor = BRAND_COLORS.orange; badgeTextColor = BRAND_COLORS.purple;
+                          }
+                        } else {
+                          const isAboveSTLY = d.varToSTLY >= 0;
+                          if (isAboveSTLY) {
+                            baseColor = BRAND_COLORS.primary; topColor = BRAND_COLORS.powder;
+                            topLabelColor = BRAND_COLORS.primary; topSubLabelLine1 = d.isAbove ? "ABOVE" : "REACH TO";
+                            badgeBgColor = BRAND_COLORS.powder; badgeTextColor = BRAND_COLORS.primary;
+                          } else {
+                            baseColor = BRAND_COLORS.powder; topColor = BRAND_COLORS.red;
+                            topLabelColor = BRAND_COLORS.red; topSubLabelLine1 = "REACH TO";
+                            badgeBgColor = BRAND_COLORS.red; badgeTextColor = BRAND_COLORS.powder;
+                          }
+                        }
+
+                        const topMetricValText = d.isAbove ? `$${formatWholeCompact(d.varToTarget)}` : `($${formatWholeCompact(Math.abs(d.varToTarget))})`;
+                        const topSubLabelLine2 = planMode.toUpperCase();
+
+                        return (
+                          <g 
+                            key={d.month} 
+                            className="cursor-pointer outline-none" 
+                            onMouseEnter={() => setHoveredPlanMonth(d.month)} 
+                            onMouseLeave={() => setHoveredPlanMonth(null)}
+                          >
+                            
+                            {/* Top Variance Callout */}
+                            <text x={groupX + colWidth / 2} y={topY - 32} textAnchor="middle" className="font-inconsolata font-extrabold" fontSize="14" fill={topLabelColor}>
+                              {topMetricValText}
+                            </text>
+                            <text x={groupX + colWidth / 2} y={topY - 18} textAnchor="middle" className="font-khand font-bold uppercase" fontSize="13" fill={topLabelColor}>
+                              {topSubLabelLine1}
+                            </text>
+                            <text x={groupX + colWidth / 2} y={topY - 6} textAnchor="middle" className="font-khand font-bold uppercase" fontSize="13" fill={topLabelColor}>
+                              {topSubLabelLine2}
+                            </text>
+
+                            {/* Base & Top Rectangles */}
+                            {topBlockHeight > 0 && (
+                              <rect x={groupX} y={topY} width={colWidth} height={topBlockHeight} fill={topColor} stroke={BRAND_COLORS.primary} strokeWidth="1.5" />
+                            )}
+                            <rect x={groupX} y={splitY} width={colWidth} height={bottomBlockHeight} fill={baseColor} stroke={BRAND_COLORS.primary} strokeWidth="1.5" />
+
+                            {/* STLY Dotted Benchmark Layer */}
+                            <line x1={groupX + 1.5} x2={groupX + colWidth - 1.5} y1={stlyY} y2={stlyY} stroke={BRAND_COLORS.yellow} strokeWidth="2" strokeDasharray="3,2" />
+
+                            {/* In-Bar STLY Metric for Current & Future OTB Months */}
+                            {!d.isPassed && (
+                              (() => {
+                                const isAbovePace = d.varToSTLY >= 0;
+
+                                // ALWAYS prefer the bottom (OTB) block if it has enough space (>= 40px)
+                                let inBottomBlock = bottomBlockHeight >= 40;
+                                
+                                // Exact Vertical Placement Strategy
+                                // If inside bottom block (OTB): Float to top of block with a doubled gap (splitY + 26)
+                                // If inside top block (Reach): Float to bottom of block with an adjusted gap (splitY - 20)
+                                let stlyTextY = inBottomBlock ? splitY + 26 : splitY - 20;
+                                
+                                // Ensure we never collide with bottom badge or top edge
+                                stlyTextY = Math.min(stlyTextY, baseY - 24);
+                                stlyTextY = Math.max(stlyTextY, topY + 14);
+
+                                const textColor = inBottomBlock
+                                  ? (isAbovePace ? BRAND_COLORS.powder : BRAND_COLORS.red)
+                                  : (isAbovePace ? BRAND_COLORS.primary : BRAND_COLORS.powder);
+
+                                return (
+                                  <g>
+                                    <text
+                                      x={groupX + colWidth / 2}
+                                      y={stlyTextY}
+                                      textAnchor="middle"
+                                      className="font-inconsolata font-extrabold"
+                                      fontSize="14"
+                                      fill={textColor}
+                                    >
+                                      {isAbovePace ? `+$${formatWholeCompact(d.varToSTLY)}` : `-$${formatWholeCompact(Math.abs(d.varToSTLY))}`}
+                                    </text>
+                                    <text
+                                      x={groupX + colWidth / 2}
+                                      y={stlyTextY + 12}
+                                      textAnchor="middle"
+                                      className="font-khand font-bold uppercase"
+                                      fontSize="11"
+                                      fill={textColor}
+                                    >
+                                      STLY
+                                    </text>
+                                  </g>
+                                );
+                              })()
+                            )}
+
+                            {/* Seamless Bottom Badges (No Gaps) */}
+                            <rect x={groupX} y={baseY} width={colWidth} height={22} fill={badgeBgColor} stroke={BRAND_COLORS.primary} strokeWidth="1.5" />
+                            <text x={groupX + colWidth / 2} y={baseY + 15} textAnchor="middle" className="font-khand font-bold uppercase" fontSize="12" fill={badgeTextColor} >
+                              {d.isPassed ? 'ACTUAL' : 'OTB'}
+                            </text>
+
+                            <rect x={groupX} y={baseY + 22} width={colWidth} height={28} fill={BRAND_COLORS.frost} stroke={BRAND_COLORS.primary} strokeWidth="1.5" />
+                            <text x={groupX + colWidth / 2} y={baseY + 42} textAnchor="middle" className="font-khand font-bold uppercase" fontSize="16" fill={BRAND_COLORS.primary} >
+                              {d.month}
+                            </text>
+                            
+                            {/* Invisible hit area covering full stack for smooth hover triggers */}
+                            <rect x={groupX} y={topY - 40} width={colWidth} height={baseY - topY + 100} fill="transparent" />
+                          </g>
+                        );
+                      })}
+                    </svg>
+                  );
+                })()}
+
+                {/* HTML Hover Tooltip Overlay (Table Design) */}
+                {hoveredPlanMonth && (() => {
+                  const hoveredData = planChartData.find(d => d.month === hoveredPlanMonth);
+                  if (!hoveredData) return null;
+                  const hoveredIdx = MONTH_ORDER.indexOf(hoveredPlanMonth);
+                  const groupX = 80 + hoveredIdx * 75;
+                  
+                  const roomsVar = hoveredData.actualNights - hoveredData.targetRooms;
+                  const roomsStlyVar = hoveredData.actualNights - hoveredData.stlyNights;
+                  const adrVar = hoveredData.actualADR - hoveredData.targetADR;
+                  const adrStlyVar = hoveredData.actualADR - hoveredData.stlyADR;
+
+                  const activeNights = hoveredData.isPassed ? hoveredData.actualNights : hoveredData.otbNights;
+                  const activeRev = hoveredData.isPassed ? hoveredData.actualRev : hoveredData.otbRev;
+                  const activeADR = hoveredData.isPassed ? hoveredData.actualADR : hoveredData.otbADR;
+                  
+                  const currentRoomsStlyVar = activeNights - (hoveredData.stlyNights || activeNights);
+                  const currentRevStlyVar = activeRev - (hoveredData.stlyRev || activeRev);
+                  const currentAdrStlyVar = activeADR - (hoveredData.stlyADR || activeADR);
+
+                  return (
+                    <div 
+                      className="absolute z-50 pointer-events-none drop-shadow-2xl bg-white border-[3px]" 
+                      style={{ 
+                        borderColor: BRAND_COLORS.primary,
+                        left: `${Math.min(Math.max(groupX - 160, 20), 550)}px`,
+                        top: '10px'
+                      }}
+                    >
+                      <table className="w-full text-left border-collapse bg-white" style={{ minWidth: '380px' }}>
+                        <thead>
+                          <tr className="border-b-[0px]" style={{ borderColor: BRAND_COLORS.primary }}>
+                            <th className="px-4 py-3 border-r-[3px]" style={{ borderColor: BRAND_COLORS.primary }}>
+                              <div className="font-khand font-bold text-3xl leading-none" style={{ color: BRAND_COLORS.primary }}>{hoveredData.month}</div>
+                            </th>
+                            <th className="px-4 py-2 font-khand font-bold text-[14px] uppercase bg-[#EFF5F6]" style={{ color: BRAND_COLORS.primary }}>{planMode}</th>
+                            <th className="px-4 py-2 font-khand font-bold text-[14px] uppercase bg-[#EFF5F6] border-r-[3px]" style={{ borderColor: BRAND_COLORS.primary, color: BRAND_COLORS.primary }}>VAR</th>
+                            <th className="px-4 py-2 font-khand font-bold text-[14px] uppercase" style={{ color: BRAND_COLORS.primary }}>{hoveredData.isPassed ? 'ACTUAL' : 'OTB'}</th>
+                            <th className="px-4 py-2 font-khand font-bold text-[14px] uppercase" style={{ color: BRAND_COLORS.primary }}>+/- STLY</th>
+                          </tr>
+                        </thead>
+                        <tbody className="text-[13px] font-roboto">
+                          <tr>
+                            <td className="px-4 py-3 font-khand font-bold uppercase text-[14px] border-r-[3px]" style={{ borderColor: BRAND_COLORS.primary, color: BRAND_COLORS.primary }}>ROOMS</td>
+                            <td className="px-4 py-3 bg-[#EFF5F6] font-bold" style={{ color: BRAND_COLORS.primary }}>{formatNumber(hoveredData.targetRooms)}</td>
+                            <td className="px-4 py-3 bg-[#EFF5F6] border-r-[3px]" style={{ borderColor: BRAND_COLORS.primary, color: '#475569' }}>{formatVar(roomsVar)}</td>
+                            <td className="px-4 py-3" style={{ color: '#475569' }}>{formatNumber(activeNights)}</td>
+                            <td className="px-4 py-3" style={{ color: currentRoomsStlyVar < 0 ? BRAND_COLORS.red : BRAND_COLORS.primary }}>{formatVar(currentRoomsStlyVar)}</td>
+                          </tr>
+                          <tr>
+                            <td className="px-4 py-3 font-khand font-bold uppercase text-[14px] border-r-[3px]" style={{ borderColor: BRAND_COLORS.primary, color: BRAND_COLORS.primary }}>REVENUE</td>
+                            <td className="px-4 py-3 bg-[#EFF5F6] font-bold" style={{ color: BRAND_COLORS.primary }}>{formatCurrency(hoveredData.targetRev)}</td>
+                            <td className="px-4 py-3 bg-[#EFF5F6] border-r-[3px]" style={{ borderColor: BRAND_COLORS.primary, color: '#475569' }}>{formatVar(hoveredData.varToTarget, true)}</td>
+                            <td className="px-4 py-3" style={{ color: '#475569' }}>{formatCurrency(activeRev)}</td>
+                            <td className="px-4 py-3" style={{ color: currentRevStlyVar < 0 ? BRAND_COLORS.red : BRAND_COLORS.primary }}>{formatVar(currentRevStlyVar, true)}</td>
+                          </tr>
+                          <tr>
+                            <td className="px-4 py-3 font-khand font-bold uppercase text-[14px] border-r-[3px]" style={{ borderColor: BRAND_COLORS.primary, color: BRAND_COLORS.primary }}>ADR</td>
+                            <td className="px-4 py-3 bg-[#EFF5F6] font-bold" style={{ color: BRAND_COLORS.primary }}>${hoveredData.targetADR.toFixed(2)}</td>
+                            <td className="px-4 py-3 bg-[#EFF5F6] border-r-[3px]" style={{ borderColor: BRAND_COLORS.primary, color: '#475569' }}>{formatVar(adrVar, true, true)}</td>
+                            <td className="px-4 py-3" style={{ color: '#475569' }}>${activeADR.toFixed(2)}</td>
+                            <td className="px-4 py-3" style={{ color: currentAdrStlyVar < 0 ? BRAND_COLORS.red : BRAND_COLORS.primary }}>{formatVar(currentAdrStlyVar, true, true)}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              <div className="flex flex-wrap justify-between items-center border-t-[3px] pt-6 mt-4 gap-4" style={{ borderColor: `${BRAND_COLORS.primary}1A` }}>
+                <div className="flex flex-wrap items-center gap-6 text-xs font-khand font-bold uppercase" style={{ color: BRAND_COLORS.primary }}>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4" style={{ backgroundColor: BRAND_COLORS.aqua, border: `1px solid ${BRAND_COLORS.primary}` }}></div>
+                    <span>ACTUAL (ABOVE PLAN)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4" style={{ backgroundColor: BRAND_COLORS.purple, border: `1px solid ${BRAND_COLORS.primary}` }}></div>
+                    <span>ACTUAL (BELOW PLAN)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4" style={{ backgroundColor: BRAND_COLORS.primary, border: `1px solid ${BRAND_COLORS.primary}` }}></div>
+                    <span>OTB (ABOVE STLY PACE)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4" style={{ backgroundColor: BRAND_COLORS.powder, border: `1px solid ${BRAND_COLORS.primary}` }}></div>
+                    <span>OTB (BELOW STLY PACE)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-0 border-b-2" style={{ borderColor: BRAND_COLORS.yellow, borderStyle: 'dashed' }}></div>
+                    <span>STLY BENCHMARK</span>
+                  </div>
+                </div>
+
+                <div className="text-[10px] font-khand font-bold uppercase tracking-widest" style={{ color: `${BRAND_COLORS.primary}80` }}>
+                  TARGET MODE: {planMode.toUpperCase()}
+                </div>
+              </div>
+
+            </div>
           </div>
         )}
 
@@ -1493,7 +1843,7 @@ function MetricBrief({ label, value, variance }) {
 
 function PacingCard({ title, actual, target, variances }) {
   return (
-    <div className="bg-[#fafafa] p-8 flex flex-col justify-between transition-colors duration-200 rounded-none" style={{ color: BRAND_COLORS.primary }}>
+    <div className="bg-[#fafafa] p-8 flex flex-col justify-between transition-colors duration-200 rounded-none border-[3px] shadow-md" style={{ color: BRAND_COLORS.primary, borderColor: BRAND_COLORS.primary }}>
       <div className="grid grid-cols-1 sm:grid-cols-12 gap-6">
         <div className="sm:col-span-7 flex flex-col justify-between space-y-6">
           <div className="flex gap-10">
