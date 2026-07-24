@@ -516,10 +516,10 @@ export default function App({ data = [] }) {
           </div>
 
           <div className="p-5 flex flex-col justify-center items-center text-center h-44 shadow-md rounded-none border border-black/5" style={{ backgroundColor: BRAND_COLORS.powder }}>
-            <h3 className="text-6xl font-khand font-bold tracking-tight leading-none" style={{ color: BRAND_COLORS.primary }}>
+            <h3 className="text-8xl font-khand font-bold tracking-tight leading-none" style={{ color: BRAND_COLORS.primary }}>
               {Math.round(stats.totalLead)}
             </h3>
-            <p className="text-xs sm:text-sm font-khand font-bold uppercase tracking-wider mt-1" style={{ color: BRAND_COLORS.primary }}>
+            <p className="text-sm sm:text-sm font-khand font-bold uppercase tracking-wider mt-1" style={{ color: BRAND_COLORS.primary }}>
               LEAD DAYS
             </p>
           </div>
